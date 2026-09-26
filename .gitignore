@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+**/node_modules/
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+web/.next/
+services/data/
+coverage/
+*.tsbuildinfo
+.DS_Store
