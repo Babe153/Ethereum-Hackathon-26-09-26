@@ -317,7 +317,16 @@ export default function BountyApp({
       active = false;
     };
   }, [current?.id, bounty?.status]);
-  const challengeEnds = bounty ? Number(bounty.approvedAt) + 60 : 0;
+  const [challengeWindow, setChallengeWindow] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!escrowAddress) return;
+    void publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: "challengeWindow" })
+      .then(value => { if (active) setChallengeWindow(Number(value)); })
+      .catch(() => { if (active) setChallengeWindow(null); });
+    return () => { active = false; };
+  }, [bounty?.status]);
+  const challengeEnds = bounty && challengeWindow !== null ? Number(bounty.approvedAt) + challengeWindow : Infinity;
   const secondsLeft = Math.max(0, challengeEnds - now);
   const isPoster = !!(
     address &&
@@ -650,6 +659,33 @@ useEffect(() => {
         account: address,
       });
     });
+  }
+
+  async function releasePayment() {
+    if (!wallet || !address || !current || !escrowAddress || !isPoster) return;
+    const id = current.id;
+    await transact(t.releaseAction, async () => {
+      const [latest, window, block] = await Promise.all([
+        publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: "getBounty", args: [id] }) as Promise<Bounty>,
+        publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: "challengeWindow" }) as Promise<bigint>,
+        publicClient.getBlock(),
+      ]);
+      if (latest.status !== 3) {
+        await refresh();
+        throw new Error(locale === "zh"
+          ? (latest.status === 5 ? "赏金已结算，无需重复付款。" : "任务状态已改变，目前不能放款。")
+          : (latest.status === 5 ? "Reward already paid. No further payment is needed." : "The task status changed; payment is unavailable."));
+      }
+      if (block.timestamp < latest.approvedAt + window) {
+        throw new Error(locale === "zh" ? "链上异议期尚未结束，请稍后重试。" : "The on-chain challenge window is still open. Try again later.");
+      }
+      const { request } = await publicClient.simulateContract({
+        address: escrowAddress, abi: escrowAbi, functionName: "claim", args: [id], account: address,
+      });
+      return wallet.writeContract({ ...request, chain: hsk, account: address });
+    });
+    // The keeper may settle between the preflight and the wallet confirmation.
+    await refresh();
   }
 
   function action(name: string, functionName: string, args: unknown[]) {
@@ -1419,11 +1455,11 @@ useEffect(() => {
                 <div className="countdown">
                   <small>{t.challengeWindow}</small>
                   <strong>
-                    {secondsLeft > 0
+                    {challengeWindow === null ? (zh ? "读取链上时间中…" : "Loading on-chain window…") : secondsLeft > 0
                       ? `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`
                       : t.readyToClaim}
                   </strong>
-                  <p>{secondsLeft > 0 ? t.disputeBefore : t.anyoneRelease}</p>
+                  <p>{challengeWindow === null ? (zh ? "暂不可放款，等待链上窗口信息。" : "Payment is unavailable until the on-chain window is loaded.") : secondsLeft > 0 ? t.disputeBefore : t.anyoneRelease}</p>
                 </div>
               )}
               {bounty.status === 0 && (
@@ -1565,15 +1601,14 @@ useEffect(() => {
               )}
               {bounty.status === 3 && (
                 <>
-                  <button
+                  {isPoster && <button
                     className="primary"
-                    disabled={!wallet || !!busy || secondsLeft > 0}
-                    onClick={() =>
-                      action(t.releaseAction, "claim", [current.id])
-                    }
+                    disabled={!wallet || !!busy || chainId !== hsk.id || challengeWindow === null || secondsLeft > 0}
+                    onClick={() => void releasePayment()}
                   >
                     {t.releaseButton}
-                  </button>
+                  </button>}
+                  <p className="action-note">{zh ? "赏金由合约支付给接单者。后台会在异议期后自动结算；发布者也可手动触发，仅需支付 Gas。" : "The contract pays the assigned worker. The keeper settles after the challenge window; the poster can also trigger settlement and pays only gas."}</p>
                   {isPoster && secondsLeft > 0 && (
                     <button
                       className="secondary"
