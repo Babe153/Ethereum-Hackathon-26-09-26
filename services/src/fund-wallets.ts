@@ -1,6 +1,6 @@
 import { createWalletClient, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { accountFor, chain, publicClient } from "./config.js";
+import { accountFor, assertWriteNetwork, chain, publicClient } from "./config.js";
 
 if (
   chain.id !== 133 ||
@@ -8,8 +8,7 @@ if (
 ) {
   throw new Error("Funding is restricted to HSKChain testnet");
 }
-if ((await publicClient.getChainId()) !== 133)
-  throw new Error("RPC chain ID mismatch");
+await assertWriteNetwork();
 
 const deployerKey = process.env.DEPLOYER_PRIVATE_KEY;
 const arbiterKey = process.env.ARBITER_PRIVATE_KEY;

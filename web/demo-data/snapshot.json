@@ -1,4 +1,8 @@
 {
+  "_deployment": {
+    "escrow": "0xE0c95F19d607bA0B3100F1c942589B63D4f3Ea03",
+    "chainId": "133"
+  },
   "/submissions/8d22d1dd-4f75-4a74-aeb4-426a8e2fc3d6": {
     "content": "Demo agent response. I addressed the following acceptance criteria: Write one paragraph explaining why a pre-funded escrow protects a freelancer. Include the exact words escrow and challenge window.. This is a scripted demo output, not an AI model result."
   },
@@ -35,8 +39,13 @@
     "pass": true,
     "hash": "0x0df065ba65f054e36d28c2c0b3a96e9fff002cd5f1ebc0084ca62f02c445447f"
   },
-  "_deployment": {
-    "escrow": "0xE0c95F19d607bA0B3100F1c942589B63D4f3Ea03",
-    "chainId": "133"
+  "/submissions/4e93c395-beb2-48a5-a553-1f628a33e120": {
+    "content": "发布者先将测试币存入链上托管合约。接单者完成交付后，由 AI 按既定标准进行验收。发布者可在 60 秒争议期内提出异议；争议期届满后，任何人都可以触发合约向接单者放款。"
+  },
+  "/reasons/4": {
+    "reason": "交付内容为一段中文说明，准确覆盖了托管存款、AI 验收、60 秒争议期和期满后任何人触发放款这四个要点，且未添加范围外的功能，符合全部要求。",
+    "score": 100,
+    "pass": true,
+    "hash": "0xcb9af2023f84c569262c0861e36f747b6d0b82a43d3c17a9c27a75027236ac70"
   }
 }

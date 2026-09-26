@@ -1,11 +1,13 @@
 import { createWalletClient, http, parseUnits, type Abi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import tokenAbiJson from "../../shared/MockUSDT.abi.json" with { type: "json" };
-import { chain, escrow, escrowAddress, publicClient } from "./config.js";
+import { assertNetwork, assertWriteNetwork, chain, escrow, escrowAddress, publicClient } from "./config.js";
 
-if (chain.id !== 133 || (await publicClient.getChainId()) !== 133) {
+if (chain.id !== 133) {
   throw new Error("Expected HSKChain testnet chain ID 133");
 }
+await assertNetwork();
+await assertWriteNetwork();
 const key = process.env.DEPLOYER_PRIVATE_KEY;
 const tokenAddress = process.env.TOKEN_ADDRESS as `0x${string}` | undefined;
 if (!key || !tokenAddress || !escrowAddress)

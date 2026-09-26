@@ -35,6 +35,16 @@ export const publicClient = createPublicClient({
   chain,
   transport: http(readRpcUrl),
 });
+const transactionRpcClient = createPublicClient({
+  chain,
+  transport: http(chain.rpcUrls.default.http[0]),
+});
+
+export async function assertWriteNetwork() {
+  const actual = await transactionRpcClient.getChainId();
+  if (actual !== chain.id)
+    throw new Error(`Transaction RPC chain ID ${actual} does not match configured ${chain.id}`);
+}
 export const escrowAddress = process.env.ESCROW_ADDRESS
   ? getAddress(process.env.ESCROW_ADDRESS)
   : undefined;

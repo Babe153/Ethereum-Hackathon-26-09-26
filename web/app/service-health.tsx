@@ -37,7 +37,7 @@ export default function ServiceHealth({ url, locale = 'en' }: { url: string; loc
   }, [url]);
   const zh = locale === 'zh';
   const messages: Record<Status, string> = zh ? { online: '在线', offline: '离线或无法访问', degraded: '运行中 · 检测到错误', unknown: '状态未知' } : { online: 'Online', offline: 'Unreachable', degraded: 'Errors detected', unknown: 'Unknown' };
-  return <section className="service-health" aria-label="Live service status">
+  return <section className="service-health" aria-label={zh ? '实时服务状态' : 'Live service status'}>
     <div><strong>{zh ? '运行状态' : 'SYSTEM STATUS'}</strong><small>{checked ? (zh ? '最近检查 ' : 'Last checked ') + new Date(checked).toLocaleTimeString() : zh ? '检查中…' : 'Checking…'}</small></div>
     <div className="service-health-items">{roles.map(role => <div key={role} className={`service-indicator ${health[role].status}`}><b>{role === 'api' ? (zh ? '提交服务' : 'Submission API') : role === 'agent' ? (zh ? 'AI 接单者' : 'AI Worker') : (zh ? 'AI 验收者' : 'AI Verifier')}</b><span>{messages[health[role].status]}</span>{health[role].lastSeen && <small>{zh ? '最近心跳 ' : 'Heartbeat '}{new Date(health[role].lastSeen!).toLocaleTimeString()}</small>}</div>)}</div>
     <p>{health.api.status === 'offline' ? (zh ? '实时提交暂不可用。历史任务仍可能显示，请恢复 API 和隧道后再演示新任务。' : 'Live submissions are unavailable. Historical examples may still display; restore the API and tunnel before a live demo.') : health.agent.status !== 'online' || health.verifier.status !== 'online' ? (zh ? '自动交付或验收可能延迟。请检查后台进程，API 可访问不代表自动化已就绪。' : 'Delivery or verification may be delayed. Check worker processes before starting a live task.') : (zh ? '后台进程正在运行。模型调用和交易仍可能失败，请以任务链上状态为准。' : 'Processes are running. Follow each task’s on-chain status for delivery and settlement.')}</p>

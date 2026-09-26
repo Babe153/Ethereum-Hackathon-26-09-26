@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { keccak256, stringToHex } from "viem";
 import {
   assertNetwork,
+  chain,
   escrow,
   escrowAddress,
   getBounty,
@@ -21,7 +22,7 @@ const count = (await publicClient.readContract({
   abi: escrow,
   functionName: "bountyCount",
 })) as bigint;
-const snapshot: Record<string, unknown> = { _deployment: { escrow: escrowAddress, chainId: String(await publicClient.getChainId()) } };
+const snapshot: Record<string, unknown> = { _deployment: { escrow: escrowAddress, chainId: String(chain.id) } };
 let exported = 0;
 
 for (let id = 0n; id < count; id++) {
