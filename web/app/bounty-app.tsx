@@ -149,7 +149,7 @@ export default function BountyApp({
       const next = hide ? [...new Set([...ids, String(id)])] : ids.filter(value => value !== String(id));
       localStorage.setItem(hiddenKey, JSON.stringify(next));
       setHiddenState({ key: hiddenKey, ids: next });
-      setNotice(locale === "zh" ? (hide ? "已从个人列表隐藏，可在“已隐藏”中恢复。" : "任务已恢复显示。") : (hide ? "Hidden from your profile. Restore it from Hidden." : "Task restored."));
+      setNotice(locale === "zh" ? (hide ? "已从你的个人中心和任务广场隐藏，可在“已隐藏”中恢复。" : "任务已恢复显示。") : (hide ? "Hidden from your profile and marketplace. Restore it from Hidden." : "Task restored."));
     } catch {
       setNotice(locale === "zh" ? "浏览器无法保存隐藏记录，请检查本地存储设置。" : "Unable to save this preference. Check your browser storage settings.");
     }
@@ -739,11 +739,9 @@ useEffect(() => {
     bounty.worker.toLowerCase() === address.toLowerCase()
   ));
   const visibleEntries = (view === "profile" ? personalEntries : entries).filter(({ id, bounty }) => {
-    if (view === "profile") {
-      const hidden = hiddenIds.includes(String(id)) && bounty.poster.toLowerCase() === address?.toLowerCase();
-      if (filter === "hidden") return hidden;
-      if (hidden) return false;
-    }
+    const hidden = hiddenIds.includes(String(id)) && bounty.poster.toLowerCase() === address?.toLowerCase();
+    if (view === "profile" && filter === "hidden") return hidden;
+    if ((view === "profile" || view === "market") && hidden) return false;
     if (filter === "all") return true;
     if (filter === "open") return bounty.status === 0;
     if (filter === "active") return [1, 2, 3, 4].includes(bounty.status);
@@ -1146,7 +1144,7 @@ useEffect(() => {
                     <h3>
                       {view === "profile" ? (zh ? "我的任务" : "My tasks") : t.bounties}{" "}
                       <span className="count">
-                        {!chainLoaded && !entries.length ? "—" : view === "profile" ? personalEntries.length : entries.length}
+                        {!chainLoaded && !entries.length ? "—" : visibleEntries.length}
                       </span>
                     </h3>
                   </div>
@@ -1190,7 +1188,13 @@ useEffect(() => {
                     {zh ? "当前钱包" : "Current wallet"}：{short(address)}
                   </p>
                 )}
-                {view === "profile" && <p className="wallet-scope">{zh ? "隐藏仅保存在当前浏览器，按钱包区分；不会取消任务或退回赏金。" : "Hidden tasks are saved in this browser per wallet. Hiding does not cancel a task or refund its reward."}</p>}
+                {view === "profile" && <p className="wallet-scope">{zh ? "隐藏会同步作用于你的个人中心和任务广场，仅保存在当前浏览器并按钱包区分；其他人仍可查看、接单。" : "Hiding applies to your profile and marketplace, saved per wallet in this browser. Other users can still view and accept these tasks."}</p>}
+                {view === "market" && address && hiddenIds.length > 0 && (
+                  <p className="wallet-scope">
+                    {zh ? "已按当前钱包的偏好隐藏任务。" : "Your wallet’s hidden tasks are excluded from this list."}{" "}
+                    <a className="text-link" href={zh ? "/zh/profile" : "/profile"}>{zh ? "前往个人中心恢复 →" : "Restore in Profile →"}</a>
+                  </p>
+                )}
                 {visibleEntries.length ? (
                   <div className="bounty-list">
                     {visibleEntries.map(({ id, bounty: item }) => (
@@ -1224,7 +1228,7 @@ useEffect(() => {
                       {view === "profile" && item.poster.toLowerCase() === address?.toLowerCase() && (
                         <div className="bounty-card-actions">
                           <button type="button" onClick={() => setTaskHidden(id, filter !== "hidden")}>
-                            {filter === "hidden" ? (zh ? "恢复显示" : "Restore task") : (zh ? "从个人列表隐藏" : "Hide from profile")}
+                            {filter === "hidden" ? (zh ? "恢复显示" : "Restore task") : (zh ? "对我隐藏" : "Hide for me")}
                           </button>
                         </div>
                       )}
@@ -1244,6 +1248,8 @@ useEffect(() => {
                             ? zh
                               ? "连接钱包查看自己的任务"
                               : "Connect your wallet to see your tasks"
+                            : view === "market" && hiddenIds.length > 0 && entries.length > 0
+                              ? (zh ? "当前没有可显示的任务" : "No tasks to show with your preferences")
                             : filter === "all"
                               ? t.noBounties
                               : zh
@@ -1255,6 +1261,8 @@ useEffect(() => {
                         ? t.chainRetry
                         : !chainLoaded
                           ? ""
+                          : view === "market" && hiddenIds.length > 0 && entries.length > 0
+                            ? (zh ? "可切换筛选条件，或在个人中心的“已隐藏”中恢复任务。" : "Try another filter or restore tasks from the Hidden tab in Profile.")
                           : filter === "all"
                             ? t.firstTask
                             : (filter === "posted" || filter === "working") &&
