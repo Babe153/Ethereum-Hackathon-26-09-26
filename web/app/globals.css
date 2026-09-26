@@ -1687,3 +1687,9 @@ footer a {
   .profile-identity { flex-basis: calc(100% - 70px); }
   .profile-identity strong { font-size: 12px; }
 }
+
+.bounty-card { min-width: 0; display: flex; flex-direction: column; }
+.bounty-card > .bounty-item { flex: 1; }
+.bounty-card-actions { display: flex; justify-content: flex-end; padding: 10px 4px 0; }
+.bounty-card-actions button { border: 0; border-radius: 6px; background: var(--soft); color: var(--pine); padding: 8px 12px; font-size: 12px; }
+.bounty-card-actions button:hover { background: var(--lime); }

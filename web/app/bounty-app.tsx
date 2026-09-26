@@ -119,6 +119,41 @@ export default function BountyApp({
   const { switchChainAsync } = useSwitchChain();
   const [filter, setFilter] = useState(view === "profile" ? "posted" : "all");
   const [entries, setEntries] = useState<Entry[]>([]);
+  const hiddenKey = address && escrowAddress
+    ? `proofpay:hidden:${hsk.id}:${escrowAddress.toLowerCase()}:${address.toLowerCase()}`
+    : null;
+  const [hiddenState, setHiddenState] = useState<{ key: string | null; ids: string[] }>({ key: null, ids: [] });
+  const hiddenIds = hiddenState.key === hiddenKey ? hiddenState.ids : [];
+  useEffect(() => {
+    const readHidden = () => {
+      let ids: string[] = [];
+      try {
+        const saved: unknown = hiddenKey ? JSON.parse(localStorage.getItem(hiddenKey) ?? "[]") : [];
+        if (Array.isArray(saved)) ids = saved.filter((id): id is string => typeof id === "string" && /^\d+$/.test(id));
+      } catch { /* Invalid or unavailable storage starts with an empty list. */ }
+      setHiddenState({ key: hiddenKey, ids });
+    };
+    readHidden();
+    const onStorage = (event: StorageEvent) => { if (event.key === hiddenKey || event.key === null) readHidden(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [hiddenKey]);
+
+  function setTaskHidden(id: bigint, hide: boolean) {
+    const entry = entries.find(entry => entry.id === id);
+    if (!hiddenKey || !address || entry?.bounty.poster.toLowerCase() !== address.toLowerCase()) return;
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(hiddenKey) ?? "[]");
+      const ids = Array.isArray(saved) ? saved.filter((value): value is string => typeof value === "string" && /^\d+$/.test(value)) : [];
+      const next = hide ? [...new Set([...ids, String(id)])] : ids.filter(value => value !== String(id));
+      localStorage.setItem(hiddenKey, JSON.stringify(next));
+      setHiddenState({ key: hiddenKey, ids: next });
+      setNotice(locale === "zh" ? (hide ? "已从个人列表隐藏，可在“已隐藏”中恢复。" : "任务已恢复显示。") : (hide ? "Hidden from your profile. Restore it from Hidden." : "Task restored."));
+    } catch {
+      setNotice(locale === "zh" ? "浏览器无法保存隐藏记录，请检查本地存储设置。" : "Unable to save this preference. Check your browser storage settings.");
+    }
+  }
+
   const selected = taskId && /^\d{1,20}$/.test(taskId) ? BigInt(taskId) : null;
   const [amount, setAmount] = useState("100");
   const [criteria, setCriteria] = useState<string>("");
@@ -611,7 +646,12 @@ useEffect(() => {
     bounty.poster.toLowerCase() === address.toLowerCase() ||
     bounty.worker.toLowerCase() === address.toLowerCase()
   ));
-  const visibleEntries = (view === "profile" ? personalEntries : entries).filter(({ bounty }) => {
+  const visibleEntries = (view === "profile" ? personalEntries : entries).filter(({ id, bounty }) => {
+    if (view === "profile") {
+      const hidden = hiddenIds.includes(String(id)) && bounty.poster.toLowerCase() === address?.toLowerCase();
+      if (filter === "hidden") return hidden;
+      if (hidden) return false;
+    }
     if (filter === "all") return true;
     if (filter === "open") return bounty.status === 0;
     if (filter === "active") return [1, 2, 3, 4].includes(bounty.status);
@@ -1020,6 +1060,7 @@ useEffect(() => {
                   {(view === "profile" ? [
                     ["posted", zh ? "我发布的" : "Posted by me"],
                     ["working", zh ? "我接的" : "Accepted by me"],
+                    ["hidden", zh ? "已隐藏" : "Hidden"],
                   ] : [
                     ["all", zh ? "全部" : "All"],
                     ["open", zh ? "待接单" : "Open"],
@@ -1044,11 +1085,12 @@ useEffect(() => {
                     {zh ? "当前钱包" : "Current wallet"}：{short(address)}
                   </p>
                 )}
+                {view === "profile" && <p className="wallet-scope">{zh ? "隐藏仅保存在当前浏览器，按钱包区分；不会取消任务或退回赏金。" : "Hidden tasks are saved in this browser per wallet. Hiding does not cancel a task or refund its reward."}</p>}
                 {visibleEntries.length ? (
                   <div className="bounty-list">
                     {visibleEntries.map(({ id, bounty: item }) => (
+                      <div className="bounty-card" key={String(id)}>
                       <a
-                        key={String(id)}
                         className="bounty-item"
                         href={taskHref(id)}
                       >
@@ -1074,6 +1116,14 @@ useEffect(() => {
                           {zh ? "查看任务 →" : "View task →"}
                         </span>
                       </a>
+                      {view === "profile" && item.poster.toLowerCase() === address?.toLowerCase() && (
+                        <div className="bounty-card-actions">
+                          <button type="button" onClick={() => setTaskHidden(id, filter !== "hidden")}>
+                            {filter === "hidden" ? (zh ? "恢复显示" : "Restore task") : (zh ? "从个人列表隐藏" : "Hide from profile")}
+                          </button>
+                        </div>
+                      )}
+                      </div>
                     ))}
                   </div>
                 ) : (
