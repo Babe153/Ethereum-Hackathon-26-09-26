@@ -58,7 +58,8 @@ type Bounty = {
   status: number;
 };
 type Entry = { id: bigint; bounty: Bounty };
-type Reason = { reason: string; score: number; pass: boolean; hash: string };
+type Reason = { reason: string; score: number; pass: boolean; hash: string; source?: "ai" | "poster" };
+type PendingReview = { aiPass: false; score: number; reason: string; submissionHash: string; submissionURI: string; expiresAt: number; humanApprovalPending: boolean };
 
 function short(address?: string) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—";
@@ -127,6 +128,8 @@ export default function BountyApp({
   const [uploadedFile, setUploadedFile] = useState("");
   const [reason, setReason] = useState<Reason | null>(null);
   const [reasonVerified, setReasonVerified] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
+  const [manualReason, setManualReason] = useState("");
   const [authAddress, setAuthAddress] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [balance, setBalance] = useState<bigint>(0n);
@@ -349,6 +352,8 @@ export default function BountyApp({
   useEffect(() => {
     setSubmission("");
     setUploadedFile("");
+    setPendingReview(null);
+    setManualReason("");
     setNotice("");
     setTxHash(null);
   }, [address, selected]);
@@ -376,10 +381,45 @@ export default function BountyApp({
     };
   }, [current?.id, bounty?.reasonHash, isPoster, signedIn]);
 
-  async function transact(
-    name: string,
-    action: () => Promise<`0x${string}`>,
-  ): Promise<boolean> {
+useEffect(() => {
+    setPendingReview(null);
+    if (!bounty || bounty.status !== 2 || !isPoster || !signedIn || current?.id === undefined) return;
+    let active = true;
+    const id = current.id;
+    const submissionHash = bounty.submissionHash;
+    const submissionURI = bounty.submissionURI;
+    const check = () => {
+      void fetch(`${serviceUrl}/reviews/${id}`, { cache: "no-store" })
+        .then(async response => response.ok ? await response.json() as PendingReview : null)
+        .then(data => { if (active) setPendingReview(data?.submissionHash.toLowerCase() === submissionHash.toLowerCase() && data?.submissionURI === submissionURI ? data : null); })
+        .catch(() => { if (active) setPendingReview(null); });
+    };
+    check();
+    const timer = setInterval(check, 5000);
+    return () => { active = false; clearInterval(timer); };
+  }, [current?.id, bounty?.status, bounty?.submissionHash, bounty?.submissionURI, isPoster, signedIn]);
+
+  async function approveAiFailure() {
+    if (!current || !bounty || !pendingReview || !isPoster || !signedIn) return;
+    if (manualReason.trim().length < 5) {
+      setNotice(locale === "zh" ? "请用至少 5 个字说明人工认可的依据。" : "Explain your approval in at least 5 characters.");
+      return;
+    }
+    setBusy("human-approval");
+    setNotice("");
+    try {
+      const response = await fetch(`${serviceUrl}/reviews/${current.id}/approve`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionHash: bounty.submissionHash, submissionURI: bounty.submissionURI, reason: manualReason.trim() }),
+      });
+      if (!response.ok) throw new Error(locale === "zh" ? `人工认可未提交成功（HTTP ${response.status}）。请刷新任务状态。` : `Could not submit human approval (HTTP ${response.status}). Refresh the task.`);
+      setPendingReview({ ...pendingReview, humanApprovalPending: true });
+      setNotice(locale === "zh" ? "人工认可已记录，验收服务会将你的决定提交上链；请等待链上状态更新。" : "Your approval is recorded. The verifier will submit it on chain; wait for the task status to update.");
+    } catch (error) { setNotice(errorText(error, locale)); }
+    finally { setBusy(""); }
+  }
+
+  async function transact(name: string, action: () => Promise<`0x${string}`>): Promise<boolean> {
     if (!wallet || !address) {
       setNotice(t.connectFirst);
       return false;
@@ -1171,54 +1211,20 @@ export default function BountyApp({
                   </small>
                 </div>
               )}
-              {bounty.submissionURI && !isPoster && !isWorker && (
-                <p className="private-note">
-                  {zh
-                    ? "平台内交付内容仅发布者和接单者可见。"
-                    : "Platform-hosted deliverables are visible only to the poster and worker."}
-                </p>
+{bounty.submissionURI && !isPoster && !isWorker && <p className="private-note">{zh ? "平台内交付内容仅发布者和接单者可见。" : "Platform-hosted deliverables are visible only to the poster and worker."}</p>}
+              {pendingReview && isPoster && signedIn && bounty.status === 2 && (
+                <section className="verdict" aria-label={zh ? "DeepSeek 待确认建议" : "Pending DeepSeek recommendation"}>
+                  <div className="report-heading"><span>{zh ? "DeepSeek 建议 · 等待人工确认" : "DeepSeek recommendation · awaiting human review"}</span><span className="status status-4">{zh ? "建议未通过" : "Suggests revision"}</span></div>
+                  <div className="report-score"><strong>{pendingReview.score}%</strong><span>{zh ? "AI 评估完成度" : "AI assessed completion"}</span></div>
+                  <p>{pendingReview.reason}</p>
+                  <small>{zh ? "这是 AI 建议，尚未写入链上。发布者可根据交付内容人工认可；5 分钟内未操作，系统才按 AI 建议处理。" : "This is an AI recommendation, not yet committed on chain. The poster can approve the work within five minutes; otherwise the AI recommendation takes effect."}</small>
+                </section>
               )}
               {reason && isPoster && signedIn && (
-                <section
-                  className="verdict"
-                  aria-label={
-                    zh ? "DeepSeek 验收报告" : "DeepSeek review report"
-                  }
-                >
-                  <div className="report-heading">
-                    <span>
-                      {/scripted demo/i.test(reason.reason)
-                        ? zh
-                          ? "脚本演示结果"
-                          : "Scripted demo result"
-                        : zh
-                          ? "DeepSeek 验收报告"
-                          : "DeepSeek review report"}
-                    </span>
-                    <span className={`status status-${reason.pass ? 3 : 4}`}>
-                      {reason.pass
-                        ? zh
-                          ? "通过"
-                          : "Passed"
-                        : zh
-                          ? "未通过"
-                          : "Needs revision"}
-                    </span>
-                  </div>
-                  <div className="report-score">
-                    <strong>{reason.score}%</strong>
-                    <span>{zh ? "任务完成度" : "Task completion"}</span>
-                  </div>
-                  <div
-                    className="report-meter"
-                    role="progressbar"
-                    aria-label={zh ? "任务完成度" : "Task completion"}
-                    aria-valuenow={reason.score}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <span style={{ width: `${reason.score}%` }} />
-                  </div>
+                <section className="verdict" aria-label={zh ? "DeepSeek 验收报告" : "DeepSeek review report"}>
+                  <div className="report-heading"><span>{reason.source === "poster" ? (zh ? "发布者人工认可 · DeepSeek 原建议" : "Poster approval · original DeepSeek review") : /scripted demo/i.test(reason.reason) ? (zh ? "脚本演示结果" : "Scripted demo result") : (zh ? "DeepSeek 验收报告" : "DeepSeek review report")}</span><span className={`status status-${reason.pass ? 3 : 4}`}>{reason.source === "poster" ? (zh ? "人工通过" : "Approved by poster") : reason.pass ? (zh ? "通过" : "Passed") : (zh ? "未通过" : "Needs revision")}</span></div>
+                  <div className="report-score"><strong>{reason.score}%</strong><span>{reason.source === "poster" ? (zh ? "DeepSeek 原评估完成度" : "Original DeepSeek score") : (zh ? "任务完成度" : "Task completion")}</span></div>
+                  <div className="report-meter" role="progressbar" aria-label={zh ? "任务完成度" : "Task completion"} aria-valuenow={reason.score} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${reason.score}%` }} /></div>
                   <h5>{zh ? "验收依据" : "Review findings"}</h5>
                   <p>{reason.reason}</p>
                   <small>
@@ -1369,9 +1375,18 @@ export default function BountyApp({
                   </button>
                 </>
               )}
+              {bounty.status === 1 && isPoster && reason?.pass === false && <p className="action-note">{zh ? "这次 AI 未通过已写入旧合约，无法原地改判。接单者可在截止前重新提交；下一次 AI 建议未通过时，你将有 5 分钟人工认可交付。" : "This AI rejection is already recorded by the existing contract and cannot be changed in place. The worker can resubmit before the deadline; you can then approve an AI rejection within a five-minute review window."}</p>}
               {bounty.status === 2 && (
                 <div className="action-note">
                   <p>{t.waitingVerifier}</p>
+{isPoster && pendingReview && !pendingReview.humanApprovalPending && <div className="manual-review">
+                    <strong>{zh ? "你可以推翻 AI 的未通过建议" : "You can overrule the AI rejection"}</strong>
+                    <p>{zh ? "先核对交付内容，再写下认可依据。你的决定会由验收服务写入链上。" : "Read the deliverable, then explain why you accept it. The verifier service will record your decision on chain."}</p>
+                    <textarea aria-label={zh ? "人工认可理由" : "Reason for human approval"} maxLength={500} rows={3} value={manualReason} onChange={event => setManualReason(event.target.value)} placeholder={zh ? "例如：交付已满足我最看重的要求……" : "For example: The delivery meets the requirement that matters most…"} />
+                    <button className="primary" disabled={!!busy || manualReason.trim().length < 5 || Date.now() >= pendingReview.expiresAt} onClick={() => void approveAiFailure()}>{zh ? "人工认可这份交付" : "Approve this work manually"}</button>
+                    <small>{zh ? `人工认可截止：${new Intl.DateTimeFormat("zh-CN", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(pendingReview.expiresAt))}（悉尼时间）` : `Human review closes at ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(pendingReview.expiresAt))} Sydney time`}</small>
+                  </div>}
+                  {isPoster && pendingReview?.humanApprovalPending && <p>{zh ? "人工认可已提交，正在等待链上确认。" : "Human approval submitted; waiting for chain confirmation."}</p>}
                   {verificationEnds?.id === current.id ? (
                     <>
                       <p>
@@ -1429,7 +1444,7 @@ export default function BountyApp({
                         action(t.disputeAction, "dispute", [current.id])
                       }
                     >
-                      {t.disputeButton}
+                      {zh ? "驳回 AI 通过，申请人工仲裁" : "Challenge AI approval for human arbitration"}
                     </button>
                   )}
                 </>

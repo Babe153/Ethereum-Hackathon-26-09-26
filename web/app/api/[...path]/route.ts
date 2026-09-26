@@ -31,7 +31,7 @@ const chain = createPublicClient({ transport: fallback([
   http(process.env.NEXT_PUBLIC_READ_RPC_URL || "https://testnet-explorer.hskchain.net/api/eth-rpc"),
   http(process.env.NEXT_PUBLIC_RPC_URL || "https://testnet.hsk.xyz"),
 ]) });
-type Bounty = { poster: string; worker: string; submissionURI: string; status: number };
+type Bounty = { poster: string; worker: string; submissionURI: string; submissionHash: string; status: number };
 
 async function bountyById(id: string): Promise<Bounty> {
   if (!/^\d{1,20}$/.test(id) || !escrowAddress) throw new Error("Invalid bounty ID");
@@ -45,7 +45,8 @@ async function forward(request: NextRequest, context: Context) {
     pathname !== "/health" &&
     pathname !== "/submissions" &&
     !/^\/submissions\/[0-9a-f-]+$/.test(pathname) &&
-    !/^\/reasons\/\d+$/.test(pathname)
+    !/^\/reasons\/\d+$/.test(pathname) &&
+    !/^\/reviews\/\d+(\/approve)?$/.test(pathname)
   ) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
@@ -75,6 +76,22 @@ async function forward(request: NextRequest, context: Context) {
         const bounty = await bountyById(path[1]);
         if (bounty.poster.toLowerCase() !== session)
           return Response.json({ error: "Only the poster can view the report" }, { status: 403 });
+      } else if (/^\/reviews\/\d+$/.test(pathname) && request.method === "GET") {
+        const bounty = await bountyById(path[1]);
+        if (bounty.poster.toLowerCase() !== session)
+          return Response.json({ error: "Only the poster can view the AI recommendation" }, { status: 403 });
+        if (bounty.status !== 2) return Response.json({ error: "This task is not awaiting review" }, { status: 409 });
+      } else if (/^\/reviews\/\d+\/approve$/.test(pathname) && request.method === "POST") {
+        const bounty = await bountyById(path[1]);
+        if (bounty.poster.toLowerCase() !== session)
+          return Response.json({ error: "Only the poster can approve the work" }, { status: 403 });
+        if (bounty.status !== 2) return Response.json({ error: "This task is not awaiting review" }, { status: 409 });
+        const body: unknown = await request.clone().json();
+        const hash = body && typeof body === "object" && "submissionHash" in body ? body.submissionHash : null;
+        const uri = body && typeof body === "object" && "submissionURI" in body ? body.submissionURI : null;
+        const reason = body && typeof body === "object" && "reason" in body ? body.reason : null;
+        if (hash !== bounty.submissionHash || uri !== bounty.submissionURI || typeof reason !== "string" || reason.trim().length < 5 || reason.length > 500)
+          return Response.json({ error: "A reason of 5–500 characters is required for the current submission" }, { status: 400 });
       } else {
         return Response.json({ error: "Not found" }, { status: 404 });
       }

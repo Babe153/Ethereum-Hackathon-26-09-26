@@ -12,7 +12,7 @@
     "snapshot": "tsx src/export-demo-snapshot.ts",
     "typecheck": "tsc --noEmit",
     "compile": "node scripts/compile-contracts.mjs --write-abi",
-    "test": "node --test test/timeout.test.mjs && tsx --test test/health.test.ts"
+    "test": "node --test test/timeout.test.mjs && tsx --test test/health.test.ts test/reviews.test.ts"
   },
   "dependencies": {
     "dotenv": "^16.6.1",

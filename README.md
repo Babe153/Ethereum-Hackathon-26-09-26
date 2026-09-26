@@ -22,6 +22,12 @@ This is application access control, not encryption or blockchain privacy. Task c
 
 New tasks are available to human workers by default. A poster can opt in to automatic demo AI agent claiming on the posting page; this stores a visible agent-mode prefix with the on-chain criteria. The worker service claims only these opted-in tasks, while the DeepSeek verifier reviews both human and AI submissions. Restart the agent and verifier processes after changing this setting in code. The numeric score is served from the demo API; only the review reason's hash is committed on chain.
 
+### Human decision after the AI recommendation
+
+DeepSeek is an adviser, not the final authority. When it recommends **rejection**, the verifier keeps the new submission in `Submitted` for five minutes. The posting wallet can inspect the private recommendation, state why it accepts the work, and manually approve it. The verifier then commits a passing decision whose on-chain reason hash covers both the poster's explanation and the original AI finding. With no poster action, the AI rejection takes effect after five minutes and the worker can resubmit before the deadline. When DeepSeek **approves**, the poster can dispute within the contract's 60-second challenge window; the independent human arbiter decides whether to pay the worker or refund the poster. The poster cannot refund themselves unilaterally.
+
+The currently deployed escrow is immutable. Bounties whose AI rejection was already committed before this workflow, including task #9, cannot be changed in place. Their assigned worker must resubmit before the deadline to receive a new review. The five-minute manual approval window applies to new submissions processed by the updated verifier service.
+
 ## What works
 
 **New local P0 changes:** latest-submission timeout arbitration (10 minutes) and independent API/Agent/Verifier health indicators. The existing public deployment is not automatically upgraded. See `docs/P0-UPGRADE.md` for tests, compatibility and rollout instructions.
@@ -29,7 +35,7 @@ New tasks are available to human workers by default. A poster can opt in to auto
 - Create a bounty by approving and locking 6-decimal `mUSDT` in `BountyEscrow`.
 - Accept and submit as a human via the web app, or let an agent wallet do both.
 - Store submission text in the service; keep its URI and Keccak-256 hash on chain.
-- AI verifier checks the stored text hash, returns a JSON verdict, and commits the reason hash on chain.
+- AI verifier checks the stored text hash and returns a JSON recommendation. Passing recommendations are committed immediately; rejected ones wait five minutes for the poster's manual approval before the final reason hash is committed.
 - Show the score and reason in the UI and verify the reason against its on-chain hash.
 - Dispute during the challenge window; an arbiter decides where the escrow goes.
 - Automatically call `claim` after 60 seconds while the verifier service is running; permissionless manual claim remains available.
