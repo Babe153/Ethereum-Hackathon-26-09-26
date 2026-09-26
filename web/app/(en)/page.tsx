@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 import {
   createPublicClient,
+  fallback,
   formatUnits,
   getAddress,
   http,
@@ -28,9 +29,12 @@ const tokenAddress = process.env.NEXT_PUBLIC_TOKEN_ADDRESS as
 const serviceUrl =
   process.env.NEXT_PUBLIC_SERVICE_URL || "/api";
 const explorer = hsk.blockExplorers.default.url;
+const readRpcUrl =
+  process.env.NEXT_PUBLIC_READ_RPC_URL ||
+  "https://testnet-explorer.hskchain.net/api/eth-rpc";
 const publicClient = createPublicClient({
   chain: hsk,
-  transport: http(hsk.rpcUrls.default.http[0]),
+  transport: fallback([http(readRpcUrl), http(hsk.rpcUrls.default.http[0])]),
 });
 const zeroHash = `0x${"0".repeat(64)}`;
 
@@ -52,12 +56,15 @@ type Reason = { reason: string; score: number; pass: boolean; hash: string };
 function short(address?: string) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—";
 }
-function errorText(error: unknown) {
-  return error instanceof Error
+function errorText(error: unknown, locale: PageLocale) {
+  const message = error instanceof Error
     ? "shortMessage" in error
       ? String(error.shortMessage)
       : error.message
     : String(error);
+  if (/HTTP request failed|rate limit|error code: 1015/i.test(message))
+    return copy[locale].requestFailed;
+  return message;
 }
 
 function submissionHref(uri: string) {
@@ -90,6 +97,10 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
   const [reason, setReason] = useState<Reason | null>(null);
   const [reasonVerified, setReasonVerified] = useState(false);
   const [balance, setBalance] = useState<bigint>(0n);
+  const [balanceAddress, setBalanceAddress] = useState<string | null>(null);
+  const [chainError, setChainError] = useState(false);
+  const [chainLoaded, setChainLoaded] = useState(false);
+  const previousEntries = useRef<Entry[]>([]);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -100,6 +111,14 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
     !!tokenAddress &&
     /^0x[0-9a-fA-F]{40}$/.test(escrowAddress) &&
     /^0x[0-9a-fA-F]{40}$/.test(tokenAddress);
+  const rewardAmount = useMemo(() => {
+    try {
+      return parseUnits(amount || "0", 6);
+    } catch {
+      return 0n;
+    }
+  }, [amount]);
+  const balanceLoaded = !!address && balanceAddress === address.toLowerCase();
 
   useEffect(() => {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
@@ -115,19 +134,22 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
       })) as bigint;
       const ids = Array.from({ length: Number(count) }, (_, i) => BigInt(i));
       const result = await Promise.all(
-        ids.map(async (id) => ({
-          id,
-          bounty: (await publicClient.readContract({
+        ids.map(async (id) => {
+          const known = previousEntries.current.find((entry) => entry.id === id);
+          if (known && (known.bounty.status === 5 || known.bounty.status === 6))
+            return known;
+          return { id, bounty: (await publicClient.readContract({
             address: escrowAddress!,
             abi: escrowAbi,
             functionName: "getBounty",
             args: [id],
-          })) as Bounty,
-        })),
+          })) as Bounty };
+        }),
       );
+      previousEntries.current = result;
       setEntries(result.reverse());
       if (selected === null && result.length) setSelected(result[0].id);
-      if (address)
+      if (address) {
         setBalance(
           (await publicClient.readContract({
             address: tokenAddress!,
@@ -136,8 +158,13 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             args: [address],
           })) as bigint,
         );
+        setBalanceAddress(address.toLowerCase());
+      }
+      setChainError(false);
+      setChainLoaded(true);
     } catch (error) {
-      setNotice(`${t.chainReadFailed}: ${errorText(error)}`);
+      console.error("Chain refresh failed", error);
+      setChainError(true);
     }
   }, [address, configured, selected, t.chainReadFailed]);
 
@@ -146,7 +173,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
     const timer = setInterval(() => {
       void refresh();
       setNow(Math.floor(Date.now() / 1000));
-    }, 4000);
+    }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
   const current = useMemo(
@@ -222,7 +249,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
       setNotice(`${name}${locale === "zh" ? "" : " "}${t.confirmed}`);
       await refresh();
     } catch (error) {
-      setNotice(`${name}: ${errorText(error)}`);
+      setNotice(`${name}: ${errorText(error, locale)}`);
     } finally {
       setBusy("");
     }
@@ -230,7 +257,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
 
   async function create() {
     if (!wallet || !address || !configured) return;
-    const value = parseUnits(amount || "0", 6);
+    const value = rewardAmount;
     const deadline = BigInt(
       Math.floor(Date.now() / 1000) + Number(minutes) * 60,
     );
@@ -241,6 +268,10 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
       Number(minutes) <= 0
     ) {
       setNotice(t.invalidBounty);
+      return;
+    }
+    if (!balanceLoaded || value > balance) {
+      setNotice(t.insufficientBalance);
       return;
     }
     await transact(t.createAction, async () => {
@@ -384,11 +415,12 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
           </button>
         </div>
       )}
+      {chainError && <div className="alert" role="status">{t.chainUnavailable}{zh ? "。" : ". "}{t.chainRetry}</div>}
       <div className="overview-stats" aria-label={zh ? '链上任务概览' : 'On-chain overview'}>
-        <div><small>{zh ? '托管中的赏金' : 'REWARDS IN ESCROW'}</small><strong>{configured ? formatUnits(locked,6) : '—'} <em>mUSDT</em></strong><span>{zh ? '测试代币，无实际价值' : 'Demo tokens · no monetary value'}</span></div>
-        <div><small>{zh ? '开放任务' : 'OPEN BOUNTIES'}</small><strong>{configured ? entries.filter(e => e.bounty.status === 0).length : '—'}</strong><span>{zh ? '等待接单' : 'Ready for a worker'}</span></div>
-        <div><small>{zh ? '进行中的任务' : 'IN PROGRESS'}</small><strong>{configured ? entries.filter(e => [1,2,3,4].includes(e.bounty.status)).length : '—'}</strong><span>{zh ? '交付、验收或仲裁中' : 'Delivery, review or arbitration'}</span></div>
-        <div><small>{zh ? '已付款任务' : 'PAID BOUNTIES'}</small><strong>{configured ? entries.filter(e => e.bounty.status === 5).length : '—'}</strong><span>{zh ? '结算记录保存在链上' : 'Settlement recorded on chain'}</span></div>
+        <div><small>{zh ? '托管中的赏金' : 'REWARDS IN ESCROW'}</small><strong>{chainLoaded ? formatUnits(locked,6) : '—'} <em>mUSDT</em></strong><span>{zh ? '测试代币，无实际价值' : 'Demo tokens · no monetary value'}</span></div>
+        <div><small>{zh ? '开放任务' : 'OPEN BOUNTIES'}</small><strong>{chainLoaded ? entries.filter(e => e.bounty.status === 0).length : '—'}</strong><span>{zh ? '等待接单' : 'Ready for a worker'}</span></div>
+        <div><small>{zh ? '进行中的任务' : 'IN PROGRESS'}</small><strong>{chainLoaded ? entries.filter(e => [1,2,3,4].includes(e.bounty.status)).length : '—'}</strong><span>{zh ? '交付、验收或仲裁中' : 'Delivery, review or arbitration'}</span></div>
+        <div><small>{zh ? '已付款任务' : 'PAID BOUNTIES'}</small><strong>{chainLoaded ? entries.filter(e => e.bounty.status === 5).length : '—'}</strong><span>{zh ? '结算记录保存在链上' : 'Settlement recorded on chain'}</span></div>
       </div>
       <ServiceHealth url={serviceUrl} locale={locale} />
       <section className="workspace">
@@ -400,7 +432,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
           <div className="wallet-balance">
             <small>{t.balance}</small>
             <strong>
-              {formatUnits(balance, 6)} <span>mUSDT</span>
+              {balanceLoaded ? formatUnits(balance, 6) : "—"} <span>mUSDT</span>
             </strong>
             <button
               disabled={!configured || !wallet || !!busy}
@@ -460,7 +492,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             </label>
             <button
               className="primary"
-              disabled={!configured || !wallet || !!busy}
+              disabled={!configured || !wallet || !!busy || chainError || !balanceLoaded || rewardAmount <= 0n || rewardAmount > balance}
               onClick={() => void create()}
             >
               {busy === t.createAction || busy === t.approveAction
@@ -471,6 +503,10 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             <p className="fineprint">
               {t.createNote}
             </p>
+            {wallet && !balanceLoaded && <p className="form-hint">{t.balancePending}</p>}
+            {wallet && balanceLoaded && rewardAmount > balance && (
+              <p className="form-hint">{t.insufficientBalance}</p>
+            )}
           </div>
           <div className="panel list-panel" id="bounty-market">
             <div className="panel-heading">
@@ -478,7 +514,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
               <div>
                 <div className="panel-eyebrow">{t.live}</div>
                 <h3>
-                  {t.bounties} <span className="count">{entries.length}</span>
+                  {t.bounties} <span className="count">{!chainLoaded && !entries.length ? "—" : entries.length}</span>
                 </h3>
               </div>
               <button
@@ -517,8 +553,8 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             ) : (
               <div className="empty">
                 <div>◌</div>
-                <strong>{filter === "all" ? t.noBounties : zh ? "暂无符合筛选条件的任务" : "No matching bounties"}</strong>
-                <p>{filter === "all" ? t.firstTask : zh ? "切换其他状态查看任务。" : "Try another status filter."}</p>
+                <strong>{chainError ? t.chainUnavailable : !chainLoaded ? t.loadingBounties : filter === "all" ? t.noBounties : zh ? "暂无符合筛选条件的任务" : "No matching bounties"}</strong>
+                <p>{chainError ? t.chainRetry : !chainLoaded ? "" : filter === "all" ? t.firstTask : zh ? "切换其他状态查看任务。" : "Try another status filter."}</p>
               </div>
             )}
           </div>

@@ -43,6 +43,8 @@ Live testnet demo: [English](https://proofpay-hskchain.vercel.app) · [简体中
 
 HSKChain testnet: chain ID **133**, RPC `https://testnet.hsk.xyz`, live explorer `https://testnet-explorer.hskchain.net`. The [official quickstart](https://docs.hskchain.net/docs/Developer-QuickStart) still lists `testnet-explorer.hsk.xyz`, which did not resolve on 26 September 2026; the [Chainlist entry](https://chainid.network/chain/133/) lists the working domain. RPC chain ID and the working explorer were checked live.
 
+The public `testnet.hsk.xyz` RPC can return HTTP 429 under frequent polling. The web app and local agents therefore use the explorer's `https://testnet-explorer.hskchain.net/api/eth-rpc` for chain reads; wallets and service transactions still use the official RPC for writes. The web app refreshes every 20 seconds and reuses final task records. A chain read failure shows an unavailable state instead of a false zero balance or task count. The read endpoint can be overridden with `NEXT_PUBLIC_READ_RPC_URL` for the web app or `READ_RPC_URL` for services.
+
 Verified HSKChain testnet deployment (26 September 2026):
 
 | Contract | Address |

@@ -16,14 +16,20 @@ let scanFailed = false;
 const { account, wallet } = walletFor("AGENT");
 const busy = new Set<string>();
 const submittedRecently = new Map<string, number>();
+const finishedForAgent = new Set<string>();
 let scanRunning = false;
 
 async function work(id: bigint) {
+  if (finishedForAgent.has(String(id))) return;
   if (busy.has(String(id))) return;
   if (Date.now() - (submittedRecently.get(String(id)) || 0) < 30_000) return;
   busy.add(String(id));
   try {
     const bounty = await getBounty(id);
+    if (bounty.status >= 2) {
+      finishedForAgent.add(String(id));
+      return;
+    }
     if (bounty.deadline <= BigInt(Math.floor(Date.now() / 1000))) return;
     if (
       bounty.status !== 0 &&
@@ -137,16 +143,6 @@ await assertNetwork();
 health = startHeartbeat('agent');
 console.log(`Agent ${account.address} watching ${escrowAddress}`);
 void scan();
-publicClient.watchContractEvent({
-  address: escrowAddress!,
-  abi: escrow,
-  eventName: "BountyCreated",
-  poll: true,
-  onLogs: () => {
-    void scan();
-  },
-  onError: console.error,
-});
 setInterval(() => {
   void scan();
-}, 5000);
+}, 8000);

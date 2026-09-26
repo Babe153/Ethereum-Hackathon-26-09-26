@@ -19,6 +19,7 @@ const busy = new Set<string>();
 const settling = new Set<string>();
 const verifiedRecently = new Map<string, { hash: string; at: number }>();
 const settledRecently = new Map<string, number>();
+const finishedForVerifier = new Set<string>();
 let settlementScanRunning = false;
 
 async function verify(id: bigint) {
@@ -91,16 +92,6 @@ if (onchainVerifier.toLowerCase() !== account.address.toLowerCase())
   );
 console.log(`Verifier ${account.address} watching ${escrowAddress}`);
 health = startHeartbeat('verifier');
-publicClient.watchContractEvent({
-  address: escrowAddress!,
-  abi: escrow,
-  eventName: "Submitted",
-  poll: true,
-  onLogs: () => {
-    void settleApproved();
-  },
-  onError: console.error,
-});
 
 // A chain cannot wake itself up. This keeper submits the permissionless claim transaction
 // after the challenge window. If it is offline, the web UI can call claim instead.
@@ -109,28 +100,33 @@ async function settleApproved() {
   settlementScanRunning = true;
   scanFailed = false;
   try {
-    const latest = await publicClient.getBlock();
-    const window = (await publicClient.readContract({
-      address: escrowAddress!,
-      abi: escrow,
-      functionName: "challengeWindow",
-    })) as bigint;
     const total = (await publicClient.readContract({
       address: escrowAddress!,
       abi: escrow,
       functionName: "bountyCount",
     })) as bigint;
     for (let id = 0n; id < total; id++) {
+      if (finishedForVerifier.has(String(id))) continue;
       if (settling.has(String(id)) || busy.has(String(id))) continue;
       if (Date.now() - (settledRecently.get(String(id)) || 0) < 60_000)
         continue;
       const bounty = await getBounty(id);
+      if (bounty.status >= 4) {
+        finishedForVerifier.add(String(id));
+        continue;
+      }
       if (bounty.status === 2) {
         await verify(id);
         continue;
       }
-      if (bounty.status !== 3 || latest.timestamp < bounty.approvedAt + window)
-        continue;
+      if (bounty.status !== 3) continue;
+      const latest = await publicClient.getBlock();
+      const window = (await publicClient.readContract({
+        address: escrowAddress!,
+        abi: escrow,
+        functionName: "challengeWindow",
+      })) as bigint;
+      if (latest.timestamp < bounty.approvedAt + window) continue;
       settling.add(String(id));
       try {
         const tx = await wallet.writeContract({
@@ -167,4 +163,4 @@ async function settleApproved() {
 void settleApproved();
 setInterval(() => {
   void settleApproved();
-}, 4000);
+}, 8000);

@@ -25,9 +25,15 @@ export const chain = defineChain({
   },
 });
 
+// Keep frequent reads away from the public sequencer RPC used by wallets to
+// send transactions. The explorer exposes the read methods used by the demo.
+const readRpcUrl =
+  process.env.READ_RPC_URL ||
+  "https://testnet-explorer.hskchain.net/api/eth-rpc";
+
 export const publicClient = createPublicClient({
   chain,
-  transport: http(chain.rpcUrls.default.http[0]),
+  transport: http(readRpcUrl),
 });
 export const escrowAddress = process.env.ESCROW_ADDRESS
   ? getAddress(process.env.ESCROW_ADDRESS)
@@ -56,12 +62,16 @@ export function walletFor(name: "VERIFIER" | "AGENT") {
 }
 
 export async function assertNetwork() {
-  const actual = await publicClient.getChainId();
-  if (actual !== chain.id)
-    throw new Error(
-      `RPC chain ID ${actual} does not match configured ${chain.id}`,
-    );
   if (!escrowAddress) throw new Error("ESCROW_ADDRESS is missing from ../.env");
+  // Blockscout's eth-rpc endpoint returns null for eth_chainId. Its hostname
+  // identifies this testnet; confirm the configured escrow is deployed there.
+  if (readRpcUrl !== "https://testnet-explorer.hskchain.net/api/eth-rpc") {
+    const actual = await publicClient.getChainId();
+    if (actual !== chain.id)
+      throw new Error(
+        `RPC chain ID ${actual} does not match configured ${chain.id}`,
+      );
+  }
   const code = await publicClient.getCode({ address: escrowAddress });
   if (!code) throw new Error(`No escrow contract at ${escrowAddress}`);
 }

@@ -364,6 +364,12 @@ a {
   line-height: 1.5;
   margin: 12px 0 0;
 }
+.form-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #946b18;
+  margin: 10px 0 0;
+}
 .refresh {
   margin-left: auto;
   background: none;
