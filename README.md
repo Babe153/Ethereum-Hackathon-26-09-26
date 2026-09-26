@@ -1,14 +1,16 @@
+**English** | [简体中文](README.zh-CN.md)
+
 <div align="center">
   <br />
   <img src="web/public/brand/proofpay-logo.svg" alt="ProofPay — Work. Verified. Paid." width="360" />
   <br /><br />
-  <strong>让每份交付，都有回报。</strong>
-  <p>AI 辅助验收 · 链上赏金托管 · 人工争议仲裁</p>
+  <strong>Good work. Clear rewards.</strong>
+  <p>AI-assisted verification · On-chain escrow · Human arbitration</p>
   <p>
-    <a href="https://proofpay-hskchain.vercel.app/zh">体验 Demo</a> ·
+    <a href="https://proofpay-hskchain.vercel.app/zh">Chinese Demo</a> ·
     <a href="https://proofpay-hskchain.vercel.app">English Demo</a> ·
-    <a href="#快速开始">快速开始</a> ·
-    <a href="docs/ARCHITECTURE.md">架构文档</a>
+    <a href="#quick-start">Quick start</a> ·
+    <a href="docs/ARCHITECTURE.md">Architecture</a>
   </p>
   <p>
     <img src="https://img.shields.io/badge/HSK_Chain-Testnet_133-193F35?style=flat-square" alt="HSK Chain Testnet 133" />
@@ -19,51 +21,51 @@
 
 ---
 
-## 关于 ProofPay
+## About ProofPay
 
-ProofPay 是一个运行在 **HSKChain 测试网**上的任务悬赏应用。发布者先将赏金锁进智能合约，接单者交付成果，AI 根据事先约定的标准给出验收建议；发生争议时，由人工仲裁决定付款或退款。
+ProofPay is a bounty application on **HSKChain Testnet**. A poster locks a reward in a smart contract, a worker delivers the work, and AI checks it against agreed acceptance criteria. If a dispute arises, a human arbiter decides whether to pay the worker or refund the poster.
 
-**Work. Verified. Paid.** 面向人类与 AI Agent 的协作，让任务、交付凭证与结算状态有迹可查。
+**Work. Verified. Paid.** Built for collaboration between people and AI agents, with traceable tasks, delivery evidence and settlement status.
 
-> 本项目为黑客松原型。`mUSDT` 是可自由铸造、没有实际价值的演示代币，请仅使用测试资产。AI 验收并不保证结果正确。
+> This is a hackathon prototype. `mUSDT` is a freely mintable demo token with no monetary value. Use test assets only. AI verification does not guarantee a correct result.
 
-## 产品体验
+## Product experience
 
-| 功能 | 你可以做什么 |
+| Feature | What you can do |
 | :--- | :--- |
-| **任务广场** | 浏览链上悬赏，按待接单、进行中、已结束筛选 |
-| **发布任务** | 设置赏金、截止时间和验收标准，授权并托管 mUSDT |
-| **个人中心** | 按当前钱包查看「我发布的」「我接的」，切换钱包同步更新 |
-| **交付与验收** | 提交文本或文件，查看有权限访问的交付内容与 AI 验收报告 |
-| **人工复核** | AI 建议拒绝时，发布者可在五分钟内说明理由并认可交付 |
-| **争议处理** | 对通过的验收发起争议，由仲裁钱包决定付款或退款 |
-| **服务状态** | 分别显示 API、Agent、Verifier 状态，识别后台离线情况 |
-| **双语界面** | 中文与英文页面共享完整任务流程 |
+| **Marketplace** | Browse on-chain bounties and filter by open, active or closed status |
+| **Post a task** | Set a reward, deadline and acceptance criteria, then approve and escrow mUSDT |
+| **Profile** | View “Posted by me” and “Accepted by me” for the connected wallet; switching wallets updates the list |
+| **Delivery & verification** | Submit text or files and access authorized deliverables and AI review reports |
+| **Human review** | When AI recommends rejection, the poster has five minutes to explain and approve the work |
+| **Disputes** | Challenge an approval and let the arbiter wallet decide payment or refund |
+| **Service health** | See separate API, Agent and Verifier statuses to identify offline services |
+| **Bilingual interface** | Follow the full task workflow in English or Chinese |
 
-钱包地址是个人页面的身份标识。连接钱包用于筛选任务；访问受限交付内容还需要签名登录。个人筛选不是链上隐私：任务标准、地址、金额、状态与哈希仍然公开。
+Your wallet address identifies your profile. Connecting a wallet filters tasks; accessing restricted deliverables also requires a sign-in signature. Personal filtering does not provide on-chain privacy: criteria, addresses, amounts, statuses and hashes remain public.
 
-## 从任务到付款
+## From task to payment
 
 ```mermaid
 flowchart LR
-    A[发布任务并托管赏金] --> B[人类或 AI Agent 接单]
-    B --> C[提交交付内容与哈希]
-    C --> D[AI 按标准验收]
-    D -->|建议通过| E[60 秒异议窗口]
-    D -->|建议拒绝| F[5 分钟人工复核]
-    F -->|发布者认可| E
-    F -->|未认可| G[拒绝并允许截止前重交]
+    A[Post task and escrow reward] --> B[Human or AI agent accepts]
+    B --> C[Submit deliverable and hash]
+    C --> D[AI checks acceptance criteria]
+    D -->|Recommends approval| E[60-second challenge window]
+    D -->|Recommends rejection| F[5-minute human review]
+    F -->|Poster approves| E
+    F -->|No approval| G[Reject; resubmit before deadline]
     G --> C
-    E -->|无争议| H[调用 claim 支付接单者]
-    E -->|发起争议| I[人工仲裁]
-    I --> J[付款或退款]
+    E -->|No dispute| H[Call claim to pay worker]
+    E -->|Disputed| I[Human arbitration]
+    I --> J[Payment or refund]
 ```
 
-- **AI Agent 默认不抢单**：发布者需要主动开启自动接单模式，Agent 才会领取该任务。
-- **结算需要链上交易**：Verifier 服务会在异议窗口结束后调用 `claim`；服务离线时也可手动触发。
-- **超时恢复**：当前合约源码支持提交后十分钟未验收时，由发布者或接单者申请仲裁。旧的不可升级合约需要重新部署才能使用此功能，详见 [升级说明](docs/P0-UPGRADE.md)。
+- **AI agents are opt-in**: the poster must enable automatic agent acceptance before the agent will claim a task.
+- **Settlement requires a transaction**: the Verifier service calls `claim` after the challenge window; it can also be triggered manually if the service is offline.
+- **Timeout recovery**: the current contract source lets the poster or worker escalate to arbitration if verification has not arrived ten minutes after submission. Older immutable contracts require redeployment to support this feature. See the [upgrade guide](docs/P0-UPGRADE.md).
 
-## 技术栈
+## Tech stack
 
 <p>
   <img src="https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&amp;logo=nextdotjs&amp;logoColor=white" alt="Next.js 16" />
@@ -74,86 +76,86 @@ flowchart LR
   <img src="https://img.shields.io/badge/OpenZeppelin-4E5EE4?style=for-the-badge&amp;logo=openzeppelin&amp;logoColor=white" alt="OpenZeppelin" />
 </p>
 
-| 层级 | 技术与职责 |
+| Layer | Technology and responsibility |
 | :--- | :--- |
-| 前端 | Next.js App Router、React、TypeScript、原生 CSS 与 SVG |
-| 钱包与链交互 | RainbowKit、wagmi、viem、TanStack Query |
-| 智能合约 | Solidity 0.8.24、Foundry、OpenZeppelin ERC-20 |
-| 服务 | Node.js / TypeScript：Submission API、Agent Worker、Verifier / Keeper |
-| AI | DeepSeek；支持 OpenAI 配置及明确标注的脚本演示模式 |
-| 数据与证据 | 服务端文件存储、链上 Keccak-256 哈希、加密历史演示快照 |
-| 网络 | HSKChain Testnet，Chain ID `133` |
+| Frontend | Next.js App Router, React, TypeScript, native CSS and SVG |
+| Wallet & chain interaction | RainbowKit, wagmi, viem, TanStack Query |
+| Smart contracts | Solidity 0.8.24, Foundry, OpenZeppelin ERC-20 |
+| Services | Node.js / TypeScript: Submission API, Agent Worker, Verifier / Keeper |
+| AI | DeepSeek, with OpenAI configuration support and an explicitly labelled scripted demo mode |
+| Data & evidence | Server-side file storage, on-chain Keccak-256 hashes, encrypted historical demo snapshots |
+| Network | HSKChain Testnet, chain ID `133` |
 
-## 项目结构
+## Project structure
 
 ```text
 ProofPay/
-├── contracts/             # 赏金托管、演示代币与 Foundry 测试
-├── services/              # API、Agent、Verifier、Keeper 与服务测试
+├── contracts/             # Bounty escrow, demo token and Foundry tests
+├── services/              # API, Agent, Verifier, Keeper and service tests
 ├── web/
-│   ├── app/               # 中英文页面、钱包登录与 API 代理
-│   ├── public/brand/      # SVG Logo 与品牌图标
-│   └── demo-data/         # 已完成演示任务的加密证据快照
-├── shared/                # 合约 ABI
-├── scripts/               # 测试网部署、争议裁决脚本
-└── docs/                  # 架构、部署、升级与品牌文档
+│   ├── app/               # Bilingual routes, wallet authentication and API proxy
+│   ├── public/brand/      # SVG logo and brand assets
+│   └── demo-data/         # Encrypted evidence snapshots for completed demos
+├── shared/                # Contract ABIs
+├── scripts/               # Testnet deployment and dispute resolution scripts
+└── docs/                  # Architecture, deployment, upgrades and branding
 ```
 
-## 快速开始
+## Quick start
 
-需要 **Node.js 22+、npm** 和浏览器 EVM 钱包；部署与 Foundry 测试另需安装 Foundry。以下命令从仓库根目录执行。
+You need **Node.js 22+, npm** and an EVM browser wallet. Contract deployment and Foundry tests also require Foundry. Run the following commands from the repository root.
 
-### 1. 安装依赖
+### 1. Install dependencies
 
 ```bash
 npm ci --prefix services
 npm ci --prefix web
 ```
 
-### 2. 配置环境
+### 2. Configure the environment
 
-复制根目录 `.env.example` 为 `.env`，复制 `web/.env.example` 为 `web/.env.local`。两份文件分别配置服务端和网页端。
+Copy the root `.env.example` to `.env`, and `web/.env.example` to `web/.env.local`. These configure the backend services and web application respectively.
 
-| 配置 | 说明 |
+| Configuration | Details |
 | :--- | :--- |
-| 合约地址 | 服务端 `TOKEN_ADDRESS` / `ESCROW_ADDRESS` 与网页端对应的 `NEXT_PUBLIC_*` 地址必须一致 |
-| 服务钱包 | 根目录配置 Agent、Verifier 等测试钱包；交易钱包需要测试 HSK 支付 Gas |
-| AI | 配置 `DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`；真实调用使用 `DEMO_MODE=0` |
-| 服务代理 | 网页端 `NEXT_PUBLIC_SERVICE_URL=/api`，本地 `SERVICE_UPSTREAM_URL=http://localhost:8787` |
-| 服务端密钥 | `SERVICE_PROXY_SECRET`、`SNAPSHOT_KEY` 在两端保持一致；`AUTH_SECRET` 仅配置在网页服务端 |
+| Contract addresses | Backend `TOKEN_ADDRESS` / `ESCROW_ADDRESS` must match their `NEXT_PUBLIC_*` counterparts in the web app |
+| Service wallets | Configure test wallets for the Agent, Verifier and other roles in the root environment; transaction wallets need test HSK for gas |
+| AI | Set `DEEPSEEK_API_KEY` or `OPENAI_API_KEY`; use `DEMO_MODE=0` for real model calls |
+| Service proxy | Set `NEXT_PUBLIC_SERVICE_URL=/api` and, locally, `SERVICE_UPSTREAM_URL=http://localhost:8787` in the web environment |
+| Server secrets | Match `SERVICE_PROXY_SECRET` and `SNAPSHOT_KEY` across both environments; set `AUTH_SECRET` only on the web server |
 
-三个服务端密钥分别使用独立的随机 32 字节十六进制值。私钥和 API Key 不可放入 `NEXT_PUBLIC_*` 变量或提交到 Git。
+Use an independent random 32-byte hexadecimal value for each of the three server secrets. Never put private keys or API keys in `NEXT_PUBLIC_*` variables or commit them to Git.
 
-新部署、测试钱包初始化、资金分配及远程代理配置见 [部署与演示指南](docs/DEPLOYMENT.md#deploy-to-hskchain-testnet)。只运行网页可以浏览界面；完整的新任务流程还需要匹配的合约、钱包和后台服务。
+For fresh deployments, test wallet setup, funding and remote proxy configuration, see the [deployment and demo guide](docs/DEPLOYMENT.md#deploy-to-hskchain-testnet). Running the web app alone lets you explore the interface; the full workflow requires matching contracts, wallets and backend services.
 
-### 3. 启动应用
+### 3. Start the application
 
-在四个终端中分别运行，每个终端从仓库根目录开始：
+Run each command in a separate terminal, starting from the repository root:
 
 ```bash
-# Terminal 1 — 提交 API
+# Terminal 1 — Submission API
 npm run server --prefix services
 
-# Terminal 2 — 自动接单 Agent
+# Terminal 2 — Automatic task agent
 npm run agent --prefix services
 
-# Terminal 3 — AI 验收与结算 Keeper
+# Terminal 3 — AI verification and settlement keeper
 npm run verifier --prefix services
 
-# Terminal 4 — 网页
+# Terminal 4 — Web application
 npm run dev --prefix web
 ```
 
-打开 [中文页面](http://localhost:3000/zh)，连接 HSKChain 测试网钱包。测试 HSK 用于 Gas，网页中铸造的 mUSDT 用于演示赏金。
+Open [the app](http://localhost:3000) and connect a wallet on HSKChain Testnet. Test HSK pays for gas; mUSDT minted through the app funds demo rewards.
 
-| 页面 | 中文 | English |
+| Page | English | Chinese |
 | :--- | :--- | :--- |
-| 任务广场 | `/zh` | `/` |
-| 发布任务 | `/zh/post` | `/post` |
-| 个人中心 | `/zh/profile` | `/profile` |
-| 任务详情 | `/zh/tasks/:id` | `/tasks/:id` |
+| Marketplace | `/` | `/zh` |
+| Post a task | `/post` | `/zh/post` |
+| Profile | `/profile` | `/zh/profile` |
+| Task details | `/tasks/:id` | `/zh/tasks/:id` |
 
-### 4. 检查与测试
+### 4. Check and test
 
 ```bash
 npm run typecheck --prefix services
@@ -162,7 +164,7 @@ npm run typecheck --prefix web
 npm run build --prefix web
 ```
 
-Foundry 合约测试：
+Run the Foundry contract tests:
 
 ```bash
 cd contracts
@@ -170,28 +172,28 @@ forge install OpenZeppelin/openzeppelin-contracts@v5.4.0 foundry-rs/forge-std@v1
 forge test -vv
 ```
 
-## 三分钟演示
+## Three-minute demo
 
-1. **发布**：写清可验收的标准，托管 100 mUSDT，展示链上交易。
-2. **交付**：由另一个钱包接单并提交成果，或演示主动开启的 AI Agent 接单。
-3. **验收**：用发布者钱包签名，打开 AI 评分、理由和交付内容。
-4. **结算**：展示异议倒计时，窗口结束后查看付款交易与接单者余额。
-5. **回访**：打开个人中心，从「我发布的」「我接的」找到对应任务。
+1. **Post**: define concrete acceptance criteria, escrow 100 mUSDT and show the transaction.
+2. **Deliver**: accept and submit from another wallet, or demonstrate an explicitly enabled AI agent.
+3. **Verify**: sign in with the poster wallet and open the AI score, reasoning and deliverable.
+4. **Settle**: show the challenge countdown, then inspect the payout transaction and worker balance.
+5. **Revisit**: open Profile and find the task under “Posted by me” or “Accepted by me”.
 
-没有模型 API 时可使用 `DEMO_MODE=1` 排练，但必须说明结果由脚本产生。新提交和实时 AI 处理依赖后台在线；历史快照不代表实时服务可用。
+Without a model API, use `DEMO_MODE=1` to rehearse and clearly identify the results as scripted. New submissions and live AI processing require the backend to be online; historical snapshots do not indicate live service availability.
 
-## 文档与边界
+## Documentation and limitations
 
-| 文档 | 内容 |
+| Document | Contents |
 | :--- | :--- |
-| [架构设计](docs/ARCHITECTURE.md) | 组件职责、信任模型与后续规划 |
-| [部署与演示指南](docs/DEPLOYMENT.md) | 环境配置、部署步骤及历史链上交易记录 |
-| [P0 升级说明](docs/P0-UPGRADE.md) | 验收超时仲裁、服务健康检查与兼容性 |
-| [品牌规范](docs/BRAND.md) | Logo、颜色与界面设计 |
-| [提交材料](docs/SUBMISSION.md) | 黑客松介绍与答辩资料 |
-| [协作指南](CONTRIBUTING.md) | 团队开发与 PR 流程 |
+| [Architecture](docs/ARCHITECTURE.md) | Component responsibilities, trust model and roadmap |
+| [Deployment & demo guide](docs/DEPLOYMENT.md) | Environment configuration, deployment and historical on-chain evidence |
+| [P0 upgrade guide](docs/P0-UPGRADE.md) | Verification timeout arbitration, service health and compatibility |
+| [Brand guidelines](docs/BRAND.md) | Logo, colors and interface design |
+| [Submission materials](docs/SUBMISSION.md) | Hackathon introduction and presentation Q&A |
+| [Contributing](CONTRIBUTING.md) | Team development and pull request workflow |
 
-Verifier 与仲裁人目前是可信角色；内容哈希用于验证数据一致性，不能证明 AI 判断正确。服务使用本地文件存储，当前原型尚不具备生产级持久化、滥用防护或真实资金安全保障。
+The Verifier and arbiter are trusted roles. Content hashes establish data consistency, not the correctness of an AI judgment. Services use local file storage; this prototype does not yet provide production-grade persistence, abuse protection or safeguards for real funds.
 
 ---
 
