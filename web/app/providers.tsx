@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   RainbowKitProvider,
+  lightTheme,
   connectorsForWallets,
 } from "@rainbow-me/rainbowkit";
 import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
@@ -21,7 +22,10 @@ export const hsk = defineChain({
     },
   },
   blockExplorers: {
-    default: { name: "HSK Explorer", url: "https://testnet-explorer.hskchain.net" },
+    default: {
+      name: "HSK Explorer",
+      url: "https://testnet-explorer.hskchain.net",
+    },
   },
   testnet: true,
 });
@@ -49,7 +53,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider locale={pathname?.startsWith("/zh") ? "zh-CN" : "en-US"}>{children}</RainbowKitProvider>
+        <RainbowKitProvider
+          theme={lightTheme({
+            accentColor: "#193f35",
+            accentColorForeground: "#ffffff",
+            borderRadius: "medium",
+            fontStack: "system",
+          })}
+          locale={pathname?.startsWith("/zh") ? "zh-CN" : "en-US"}
+        >
+          {children}
+        </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

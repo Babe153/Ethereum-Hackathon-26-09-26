@@ -4,6 +4,7 @@ import "../globals.css";
 import Providers from "../providers";
 
 export const metadata: Metadata = {
+  icons: { icon: "/brand/proofpay-mark.svg", apple: "/brand/proofpay-mark.svg" },
   title: "ProofPay｜AI 验收悬赏与链上托管",
   description: "用链上托管锁定测试币赏金，由 AI 按验收标准审核交付，争议期结束后放款。",
 };

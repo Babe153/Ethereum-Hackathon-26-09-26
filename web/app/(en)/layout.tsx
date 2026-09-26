@@ -4,6 +4,7 @@ import "../globals.css";
 import Providers from "../providers";
 
 export const metadata: Metadata = {
+  icons: { icon: "/brand/proofpay-mark.svg", apple: "/brand/proofpay-mark.svg" },
   title: "ProofPay — AI Bounty Escrow",
   description: "AI verified bounties with on-chain escrow and a timed challenge window on HSKChain.",
   alternates: { canonical: "/", languages: { en: "/", "zh-CN": "/zh" } },
