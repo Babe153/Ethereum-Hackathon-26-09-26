@@ -96,7 +96,7 @@ function submissionHref(uri: string, bountyId: bigint) {
   return null;
 }
 
-type View = "market" | "post" | "detail";
+type View = "market" | "post" | "detail" | "profile";
 
 export default function BountyApp({
   locale = "en",
@@ -117,7 +117,7 @@ export default function BountyApp({
   const { data: wallet } = useWalletClient();
   const { signMessageAsync } = useSignMessage();
   const { switchChainAsync } = useSwitchChain();
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(view === "profile" ? "posted" : "all");
   const [entries, setEntries] = useState<Entry[]>([]);
   const selected = taskId && /^\d{1,20}$/.test(taskId) ? BigInt(taskId) : null;
   const [amount, setAmount] = useState("100");
@@ -607,7 +607,11 @@ useEffect(() => {
   }
 
   const zh = locale === "zh";
-  const visibleEntries = entries.filter(({ bounty }) => {
+  const personalEntries = entries.filter(({ bounty }) => address && (
+    bounty.poster.toLowerCase() === address.toLowerCase() ||
+    bounty.worker.toLowerCase() === address.toLowerCase()
+  ));
+  const visibleEntries = (view === "profile" ? personalEntries : entries).filter(({ bounty }) => {
     if (filter === "all") return true;
     if (filter === "open") return bounty.status === 0;
     if (filter === "active") return [1, 2, 3, 4].includes(bounty.status);
@@ -650,12 +654,15 @@ useEffect(() => {
           >
             {zh ? "发布任务" : "Post a task"}
           </a>
+          <a href={zh ? "/zh/profile" : "/profile"} aria-current={view === "profile" ? "page" : undefined}>
+            {zh ? "个人中心" : "Profile"}
+          </a>
         </nav>
         <div className="top-right">
           <a
             className="language-switch"
             href={
-              locale === "zh"
+              view === "profile" ? (zh ? "/profile" : "/zh/profile") : locale === "zh"
                 ? view === "post"
                   ? "/post"
                   : view === "detail"
@@ -685,7 +692,7 @@ useEffect(() => {
             </a>
           )}
           <div className="section-kicker">
-            {view === "post"
+            {view === "profile" ? (zh ? "个人中心" : "YOUR PROFILE") : view === "post"
               ? zh
                 ? "发布任务"
                 : "POST A TASK"
@@ -698,7 +705,7 @@ useEffect(() => {
                   : "BOUNTY MARKETPLACE"}
           </div>
           <h1 id="page-title">
-            {view === "post" ? (
+            {view === "profile" ? (zh ? "我的任务，尽在这里。" : "Your work, in one place.") : view === "post" ? (
               zh ? (
                 "发布任务，锁定赏金"
               ) : (
@@ -721,7 +728,7 @@ useEffect(() => {
             )}
           </h1>
           <p>
-            {view === "post"
+            {view === "profile" ? (zh ? "按当前连接的钱包管理发布和接下的任务。切换钱包后，列表会同步更新。" : "Manage tasks posted and accepted by your connected wallet. Switching wallets updates your tasks.") : view === "post"
               ? zh
                 ? "写清验收标准，设置赏金与截止时间。发布后，测试币会进入链上托管。"
                 : "Set clear acceptance criteria, a reward and a deadline. Demo tokens are locked on chain when you post."
@@ -746,6 +753,16 @@ useEffect(() => {
         </div>
         {view === "market" && <ProofIllustration zh={zh} />}
       </section>
+      {view === "profile" && (
+        <section className="profile-wallet" aria-label={zh ? "钱包身份" : "Wallet identity"}>
+          <div className="profile-avatar" aria-hidden="true">{address ? address.slice(2, 4).toUpperCase() : "◇"}</div>
+          <div className="profile-identity"><span className="section-kicker">{zh ? "当前钱包" : "CONNECTED WALLET"}</span>
+            <strong>{address ?? (zh ? "尚未连接钱包" : "No wallet connected")}</strong>
+            <p>{zh ? "钱包地址是你的个人身份；链上任务信息仍然公开。" : "Your wallet address identifies your profile. On-chain task information remains public."}</p>
+          </div>
+          {!address && <ConnectButton showBalance={false} chainStatus="none" />}
+        </section>
+      )}
       {view === "market" && (
         <div
           className="overview-stats"
@@ -810,7 +827,7 @@ useEffect(() => {
           {t.chainRetry}
         </div>
       )}
-      {(view === "market" || view === "post") && (
+      {(view === "market" || view === "post" || view === "profile") && (
         <section className={`workspace workspace-${view}`}>
           {view === "post" && (
             <div className="workspace-head">
@@ -975,16 +992,16 @@ useEffect(() => {
                 </aside>
               </>
             )}
-            {view === "market" && (
+            {(view === "market" || view === "profile") && (
               <div className="panel list-panel" id="bounty-market">
                 <div className="panel-heading">
                   <span className="panel-icon dark">▦</span>
                   <div>
                     <div className="panel-eyebrow">{t.live}</div>
                     <h3>
-                      {t.bounties}{" "}
+                      {view === "profile" ? (zh ? "我的任务" : "My tasks") : t.bounties}{" "}
                       <span className="count">
-                        {!chainLoaded && !entries.length ? "—" : entries.length}
+                        {!chainLoaded && !entries.length ? "—" : view === "profile" ? personalEntries.length : entries.length}
                       </span>
                     </h3>
                   </div>
@@ -1000,17 +1017,18 @@ useEffect(() => {
                   className="market-filters"
                   aria-label={zh ? "筛选任务" : "Filter bounties"}
                 >
-                  {[
+                  {(view === "profile" ? [
+                    ["posted", zh ? "我发布的" : "Posted by me"],
+                    ["working", zh ? "我接的" : "Accepted by me"],
+                  ] : [
                     ["all", zh ? "全部" : "All"],
                     ["open", zh ? "待接单" : "Open"],
                     ["active", zh ? "进行中" : "Active"],
                     ["closed", zh ? "已结束" : "Closed"],
-                    ["posted", zh ? "我发布的" : "Posted by me"],
-                    ["working", zh ? "我接的" : "Accepted by me"],
                     ...(address?.toLowerCase() === arbiterAddress
                       ? [["arbitration", zh ? "待我仲裁" : "Needs my arbitration"]]
                       : []),
-                  ].map(([key, label]) => (
+                  ]).map(([key, label]) => (
                     <button
                       key={key}
                       aria-pressed={filter === key}
@@ -1062,7 +1080,7 @@ useEffect(() => {
                   <div className="empty">
                     <div>◌</div>
                     <strong>
-                      {!configured ? (zh ? "任务数据尚未接入" : "Task data is not connected yet") : chainError
+                      {view === "profile" && !address ? (zh ? "连接钱包查看自己的任务" : "Connect your wallet to see your tasks") : !configured ? (zh ? "任务数据尚未接入" : "Task data is not connected yet") : chainError
                         ? t.chainUnavailable
                         : !chainLoaded
                           ? t.loadingBounties
@@ -1089,9 +1107,11 @@ useEffect(() => {
                               ? zh
                                 ? "连接后仅显示该钱包发布或接下的任务。"
                                 : "Only tasks posted or accepted by this wallet will appear."
-                              : zh
-                                ? "切换其他状态查看任务。"
-                                : "Try another status filter."}
+                              : view === "profile"
+                                ? (zh ? "这个钱包还没有此类任务，可以前往任务广场接单，或发布一个新任务。" : "This wallet has no tasks in this category. Explore the marketplace or post a new task.")
+                                : zh
+                                  ? "切换其他状态查看任务。"
+                                  : "Try another status filter."}
                     </p>
                     {(filter === "posted" || filter === "working") &&
                       !address && (

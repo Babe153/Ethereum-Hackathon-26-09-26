@@ -482,7 +482,8 @@ textarea:focus {
   color: #61804c;
   font-size: 11px;
 }
-.panels-market {
+.panels-market,
+.panels-profile {
   display: block;
 }
 .panels-post {
@@ -1663,7 +1664,7 @@ footer a {
   .brand { grid-column: 1; }
   .top-right { grid-column: 2; grid-row: 1; justify-content: flex-end; }
   .top-right .network { display: none; }
-  .main-nav { grid-column: 1 / -1; grid-row: 2; margin: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  .main-nav { grid-column: 1 / -1; grid-row: 2; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); }
   .main-nav a { text-align: center; }
   .page-intro { align-items: stretch; flex-direction: column; padding: 34px 0 22px; gap: 18px; }
   .page-intro h1 { font-size: 34px; }
@@ -1673,4 +1674,16 @@ footer a {
   .posting-guide { padding: 22px; }
   .wallet-gate { flex-direction: column; align-items: flex-start; }
   .wallet-gate p { width: 100%; }
+}
+
+/* Wallet-scoped profile */
+.profile-wallet { display: flex; align-items: center; gap: 20px; padding: 26px; margin-bottom: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.profile-avatar { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; border-radius: 18px; background: var(--pine); color: var(--lime); font-size: 22px; font-weight: 650; }
+.profile-identity { min-width: 0; flex: 1; }
+.profile-identity strong { display: block; overflow-wrap: anywhere; margin-top: 8px; font-family: monospace; font-size: 15px; }
+.profile-identity p { color: var(--muted); margin: 8px 0 0; font-size: 12px; line-height: 1.7; }
+@media (max-width: 650px) {
+  .profile-wallet { flex-wrap: wrap; gap: 14px; padding: 18px; }
+  .profile-identity { flex-basis: calc(100% - 70px); }
+  .profile-identity strong { font-size: 12px; }
 }
