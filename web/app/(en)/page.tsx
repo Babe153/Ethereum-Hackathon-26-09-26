@@ -17,7 +17,7 @@ import escrowJson from "../../abi/BountyEscrow.abi.json";
 import tokenJson from "../../abi/MockUSDT.abi.json";
 import { hsk } from "../providers";
 import { copy, type PageLocale } from "../copy";
-import ServiceHealth from "./service-health";
+import ServiceHealth from "@/app/service-health";
 
 const escrowAbi = escrowJson as Abi;
 const tokenAbi = tokenJson as Abi;
