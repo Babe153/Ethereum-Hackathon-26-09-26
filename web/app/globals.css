@@ -10,6 +10,20 @@
 body {
   margin: 0;
 }
+html:lang(zh-CN) {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+html:lang(zh-CN) .hero h1 {
+  font-size: clamp(39px, 4.7vw, 64px);
+  line-height: 1.17;
+  letter-spacing: -0.045em;
+}
+html:lang(zh-CN) .eyebrow,
+html:lang(zh-CN) .section-kicker,
+html:lang(zh-CN) .panel-eyebrow,
+html:lang(zh-CN) .flow-title {
+  letter-spacing: 0.08em;
+}
 button,
 input,
 textarea {
@@ -63,6 +77,20 @@ a {
   display: flex;
   align-items: center;
   gap: 23px;
+}
+.language-switch {
+  border: 1px solid #dce5df;
+  border-radius: 20px;
+  padding: 8px 11px;
+  color: #0b8064;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.language-switch:hover,
+.language-switch:focus-visible {
+  border-color: #18ae87;
 }
 .network {
   font-size: 12px;
@@ -146,7 +174,7 @@ a {
 .flow-line {
   border-top: 1px solid #ffffff20;
   display: grid;
-  grid-template-columns: 38px 80px 1fr;
+  grid-template-columns: 38px minmax(80px, auto) 1fr;
   gap: 11px;
   align-items: center;
   padding: 19px 0;
@@ -525,6 +553,12 @@ a {
   margin: 0 0 25px;
   white-space: pre-wrap;
 }
+.original-content-note {
+  margin: -12px 0 25px;
+  color: #718079;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .meta {
   display: flex;
   gap: 22px;
@@ -712,11 +746,15 @@ footer a {
   }
 }
 @media (max-width: 600px) {
-  .network {
-    display: none;
+  .topbar {
+    flex-wrap: wrap;
   }
   .top-right {
-    gap: 8px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .network {
+    display: none;
   }
   .hero h1 {
     font-size: 43px;
@@ -745,7 +783,7 @@ footer a {
     grid-template-columns: 1fr 1fr;
   }
   .flow-line {
-    grid-template-columns: 30px 65px 1fr;
+    grid-template-columns: 30px minmax(65px, auto) 1fr;
   }
   .flow-line small {
     font-size: 10px;

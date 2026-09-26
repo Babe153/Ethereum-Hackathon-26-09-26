@@ -6,7 +6,7 @@ ProofPay locks a demo reward on HSKChain, lets a human or an AI agent deliver wo
 
 GitHub repository: [Babe153/Ethereum-Hackathon-26-09-26](https://github.com/Babe153/Ethereum-Hackathon-26-09-26).
 
-Live testnet demo: [proofpay-hskchain.vercel.app](https://proofpay-hskchain.vercel.app). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#3 used real DeepSeek API calls and paid the workers on chain. The four completed tasks have a read-only, on-chain-hash-verified evidence snapshot bundled into the web app. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
+Live testnet demo: [English](https://proofpay-hskchain.vercel.app) · [简体中文](https://proofpay-hskchain.vercel.app/zh). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#3 used real DeepSeek API calls and paid the workers on chain. The four completed tasks have a read-only, on-chain-hash-verified evidence snapshot bundled into the web app. Existing on-chain criteria and review reasons remain in their original language on both pages. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
 
 ## What works
 

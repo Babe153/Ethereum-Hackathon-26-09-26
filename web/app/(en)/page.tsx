@@ -13,9 +13,10 @@ import {
   stringToHex,
   type Abi,
 } from "viem";
-import escrowJson from "../abi/BountyEscrow.abi.json";
-import tokenJson from "../abi/MockUSDT.abi.json";
-import { hsk } from "./providers";
+import escrowJson from "../../abi/BountyEscrow.abi.json";
+import tokenJson from "../../abi/MockUSDT.abi.json";
+import { hsk } from "../providers";
+import { copy, type PageLocale } from "../copy";
 
 const escrowAbi = escrowJson as Abi;
 const tokenAbi = tokenJson as Abi;
@@ -30,15 +31,6 @@ const publicClient = createPublicClient({
   chain: hsk,
   transport: http(hsk.rpcUrls.default.http[0]),
 });
-const labels = [
-  "Open",
-  "Taken",
-  "Submitted",
-  "Approved",
-  "Disputed",
-  "Paid",
-  "Refunded",
-];
 const zeroHash = `0x${"0".repeat(64)}`;
 
 type Bounty = {
@@ -82,16 +74,15 @@ function submissionHref(uri: string) {
   return uri;
 }
 
-export default function Home() {
+export default function Home({ locale = "en" }: { locale?: PageLocale }) {
+  const t = copy[locale];
   const { address, chainId, isConnected } = useAccount();
   const { data: wallet } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selected, setSelected] = useState<bigint | null>(null);
   const [amount, setAmount] = useState("100");
-  const [criteria, setCriteria] = useState(
-    "Summarize the article in one paragraph. Mention X and Y.",
-  );
+  const [criteria, setCriteria] = useState<string>(t.defaultCriteria);
   const [minutes, setMinutes] = useState("30");
   const [submission, setSubmission] = useState("");
   const [reason, setReason] = useState<Reason | null>(null);
@@ -106,6 +97,10 @@ export default function Home() {
     !!tokenAddress &&
     /^0x[0-9a-fA-F]{40}$/.test(escrowAddress) &&
     /^0x[0-9a-fA-F]{40}$/.test(tokenAddress);
+
+  useEffect(() => {
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  }, [locale]);
 
   const refresh = useCallback(async () => {
     if (!configured) return;
@@ -139,9 +134,9 @@ export default function Home() {
           })) as bigint,
         );
     } catch (error) {
-      setNotice(`Chain read failed: ${errorText(error)}`);
+      setNotice(`${t.chainReadFailed}: ${errorText(error)}`);
     }
-  }, [address, configured, selected]);
+  }, [address, configured, selected, t.chainReadFailed]);
 
   useEffect(() => {
     void refresh();
@@ -193,11 +188,11 @@ export default function Home() {
 
   async function transact(name: string, action: () => Promise<`0x${string}`>) {
     if (!wallet || !address) {
-      setNotice("Connect a wallet first.");
+      setNotice(t.connectFirst);
       return;
     }
     if (chainId !== hsk.id) {
-      setNotice("Switch to HSKChain Testnet first.");
+      setNotice(t.switchFirst);
       return;
     }
     setBusy(name);
@@ -207,8 +202,8 @@ export default function Home() {
       const hash = await action();
       setTxHash(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Transaction reverted");
-      setNotice(`${name} confirmed on HSKChain.`);
+      if (receipt.status !== "success") throw new Error(t.reverted);
+      setNotice(`${name}${locale === "zh" ? "" : " "}${t.confirmed}`);
       await refresh();
     } catch (error) {
       setNotice(`${name}: ${errorText(error)}`);
@@ -229,10 +224,10 @@ export default function Home() {
       !Number.isFinite(Number(minutes)) ||
       Number(minutes) <= 0
     ) {
-      setNotice("Enter a positive amount, criteria and deadline.");
+      setNotice(t.invalidBounty);
       return;
     }
-    await transact("Create bounty", async () => {
+    await transact(t.createAction, async () => {
       const allowance = (await publicClient.readContract({
         address: tokenAddress!,
         abi: tokenAbi,
@@ -240,7 +235,7 @@ export default function Home() {
         args: [address, escrowAddress!],
       })) as bigint;
       if (allowance < value) {
-        setBusy("Approve token");
+        setBusy(t.approveAction);
         const approval = await wallet.writeContract({
           address: tokenAddress!,
           abi: tokenAbi,
@@ -253,9 +248,9 @@ export default function Home() {
           hash: approval,
         });
         if (receipt.status !== "success")
-          throw new Error("Token approval reverted");
+          throw new Error(t.approvalReverted);
       }
-      setBusy("Create bounty");
+      setBusy(t.createAction);
       return wallet.writeContract({
         address: escrowAddress!,
         abi: escrowAbi,
@@ -270,23 +265,23 @@ export default function Home() {
 
   async function submit() {
     if (!wallet || !address || selected === null || !submission.trim()) {
-      setNotice("Write a submission first.");
+      setNotice(t.writeSubmission);
       return;
     }
-    await transact("Submit work", async () => {
+    await transact(t.submitAction, async () => {
       const response = await fetch(`${serviceUrl}/submissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: submission }),
       });
       if (!response.ok)
-        throw new Error(`Submission store returned HTTP ${response.status}`);
+        throw new Error(`${t.storeFailed} ${response.status}`);
       const stored = (await response.json()) as {
         uri: string;
         contentHash: `0x${string}`;
       };
       if (stored.contentHash !== keccak256(stringToHex(submission)))
-        throw new Error("Stored content hash differs");
+        throw new Error(t.hashDiffers);
       return wallet.writeContract({
         address: escrowAddress!,
         abi: escrowAbi,
@@ -318,11 +313,14 @@ export default function Home() {
         <a className="brand" href="#top">
           <span className="brand-mark">P</span>
           <span>PROOFPAY</span>
-          <small>AI BOUNTY ESCROW</small>
+          <small>{t.brandTag}</small>
         </a>
         <div className="top-right">
+          <a className="language-switch" href={locale === "zh" ? "/" : "/zh"} lang={locale === "zh" ? "en" : "zh-CN"}>
+            {t.switchLanguage}
+          </a>
           <span className="network">
-            <i /> HSKChain Testnet
+            <i /> {t.network}
           </span>
           <ConnectButton showBalance={false} chainStatus="none" />
         </div>
@@ -330,79 +328,57 @@ export default function Home() {
       <div id="top" className="hero">
         <div className="hero-copy">
           <div className="eyebrow">
-            <span className="spark">✳</span> AUTONOMOUS WORK. GUARANTEED
-            PAYMENT.
+            <span className="spark">✳</span> {t.eyebrow}
           </div>
           <h1>
-            Work gets verified.
+            {t.heroLine1}
             <br />
-            <em>Payment gets released.</em>
+            <em>{t.heroLine2}</em>
           </h1>
-          <p>
-            Post a bounty with clear acceptance criteria. An AI agent can do the
-            work. An AI reviewer checks it. The reward stays locked on chain
-            until the challenge window closes.
-          </p>
+          <p>{t.heroDescription}</p>
           <div className="hero-pills">
-            <span>◈ On-chain escrow</span>
-            <span>✦ AI verification</span>
-            <span>◷ 60s challenge window</span>
+            {t.heroPills.map((pill) => <span key={pill}>{pill}</span>)}
           </div>
         </div>
         <div className="hero-card">
-          <div className="flow-title">HOW A BOUNTY MOVES</div>
-          <div className="flow-line">
-            <span>01</span>
-            <strong>Fund</strong>
-            <small>Lock demo USDT in escrow</small>
-          </div>
-          <div className="flow-line">
-            <span>02</span>
-            <strong>Deliver</strong>
-            <small>Human or agent submits proof</small>
-          </div>
-          <div className="flow-line">
-            <span>03</span>
-            <strong>Verify</strong>
-            <small>AI scores against your criteria</small>
-          </div>
-          <div className="flow-line">
-            <span>04</span>
-            <strong>Release</strong>
-            <small>Anyone calls claim after 60s</small>
-          </div>
+          <div className="flow-title">{t.flowTitle}</div>
+          {t.flow.map(([name, detail], index) => (
+            <div className="flow-line" key={name}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{name}</strong>
+              <small>{detail}</small>
+            </div>
+          ))}
         </div>
       </div>
       {!configured && (
         <div className="alert">
-          Deployment needed: set NEXT_PUBLIC_TOKEN_ADDRESS and
-          NEXT_PUBLIC_ESCROW_ADDRESS in the root .env, then restart the web
-          server.
+          {t.deploymentNeeded}
         </div>
       )}
       {isConnected && chainId !== hsk.id && (
         <div className="alert">
-          Your wallet is on another chain.{" "}
+          {t.wrongChain}{" "}
           <button onClick={() => void switchChainAsync({ chainId: hsk.id })}>
-            Switch to HSKChain Testnet
+            {t.switchChain}
           </button>
         </div>
       )}
       <section className="workspace">
         <div className="workspace-head">
           <div>
-            <div className="section-kicker">THE WORKSPACE</div>
-            <h2>Build trust into every task.</h2>
+            <div className="section-kicker">{t.workspaceKicker}</div>
+            <h2>{t.workspaceTitle}</h2>
           </div>
           <div className="wallet-balance">
-            <small>YOUR DEMO BALANCE</small>
+            <small>{t.balance}</small>
             <strong>
               {formatUnits(balance, 6)} <span>mUSDT</span>
             </strong>
             <button
               disabled={!configured || !wallet || !!busy}
               onClick={() =>
-                void transact("Mint demo tokens", () =>
+                void transact(t.mintAction, () =>
                   wallet!.writeContract({
                     address: tokenAddress!,
                     abi: tokenAbi,
@@ -414,7 +390,7 @@ export default function Home() {
                 )
               }
             >
-              + Get 1,000 demo USDT
+              {t.mintButton}
             </button>
           </div>
         </div>
@@ -423,12 +399,12 @@ export default function Home() {
             <div className="panel-heading">
               <span className="panel-icon">＋</span>
               <div>
-                <div className="panel-eyebrow">NEW BOUNTY</div>
-                <h3>Post a task</h3>
+                <div className="panel-eyebrow">{t.newBounty}</div>
+                <h3>{t.postTask}</h3>
               </div>
             </div>
             <label>
-              Reward <span>mUSDT · demo token</span>
+              {t.reward} <span>{t.rewardHint}</span>
               <input
                 type="number"
                 min="0.000001"
@@ -438,7 +414,7 @@ export default function Home() {
               />
             </label>
             <label>
-              Acceptance criteria <span>Be specific about what passes</span>
+              {t.criteria} <span>{t.criteriaHint}</span>
               <textarea
                 rows={5}
                 maxLength={2048}
@@ -447,7 +423,7 @@ export default function Home() {
               />
             </label>
             <label>
-              Deadline <span>Minutes from now</span>
+              {t.deadline} <span>{t.deadlineHint}</span>
               <input
                 type="number"
                 min="1"
@@ -460,29 +436,28 @@ export default function Home() {
               disabled={!configured || !wallet || !!busy}
               onClick={() => void create()}
             >
-              {busy === "Create bounty" || busy === "Approve token"
-                ? "Confirm in wallet…"
-                : "Lock funds & create bounty"}
+              {busy === t.createAction || busy === t.approveAction
+                ? t.confirmWallet
+                : t.lockFunds}
               <span>↗</span>
             </button>
             <p className="fineprint">
-              Your wallet approves an exact amount, then locks it in the escrow
-              contract.
+              {t.createNote}
             </p>
           </div>
           <div className="panel list-panel">
             <div className="panel-heading">
               <span className="panel-icon dark">▦</span>
               <div>
-                <div className="panel-eyebrow">LIVE ON HSKCHAIN</div>
+                <div className="panel-eyebrow">{t.live}</div>
                 <h3>
-                  Bounties <span className="count">{entries.length}</span>
+                  {t.bounties} <span className="count">{entries.length}</span>
                 </h3>
               </div>
               <button
                 className="refresh"
                 onClick={() => void refresh()}
-                aria-label="Refresh bounties"
+                aria-label={t.refresh}
               >
                 ↻
               </button>
@@ -500,7 +475,7 @@ export default function Home() {
                         #{String(id).padStart(3, "0")}
                       </span>
                       <span className={`status status-${item.status}`}>
-                        {labels[item.status]}
+                        {t.status[item.status]}
                       </span>
                     </div>
                     <strong>{item.criteria}</strong>
@@ -514,8 +489,8 @@ export default function Home() {
             ) : (
               <div className="empty">
                 <div>◌</div>
-                <strong>No bounties yet</strong>
-                <p>Fund the first task to start the flow.</p>
+                <strong>{t.noBounties}</strong>
+                <p>{t.firstTask}</p>
               </div>
             )}
           </div>
@@ -526,16 +501,16 @@ export default function Home() {
           <div className="detail-head">
             <div>
               <div className="section-kicker">
-                BOUNTY #{String(current.id).padStart(3, "0")}
+                {t.bounty} #{String(current.id).padStart(3, "0")}
               </div>
-              <h2>Task details</h2>
+              <h2>{t.taskDetails}</h2>
             </div>
             <span className={`status large status-${bounty.status}`}>
-              {labels[bounty.status]}
+              {t.status[bounty.status]}
             </span>
           </div>
           <div className="timeline">
-            {["Open", "Taken", "Submitted", "Approved", "Paid"].map(
+            {t.steps.map(
               (step, index) => (
                 <div
                   key={step}
@@ -559,64 +534,73 @@ export default function Home() {
           </div>
           <div className="detail-grid">
             <div>
-              <h4>Acceptance criteria</h4>
+              <h4>{t.criteria}</h4>
               <p className="criteria-text">{bounty.criteria}</p>
+              {t.originalContentNote && <p className="original-content-note">{t.originalContentNote}</p>}
               <div className="meta">
                 <span>
-                  POSTER <strong>{short(bounty.poster)}</strong>
+                  {t.poster} <strong>{short(bounty.poster)}</strong>
                 </span>
                 <span>
-                  WORKER <strong>{short(bounty.worker)}</strong>
+                  {t.worker} <strong>{short(bounty.worker)}</strong>
                 </span>
                 <span>
-                  DEADLINE{" "}
+                  {t.deadline} · {t.sydneyTime}{" "}
                   <strong>
-                    {new Date(Number(bounty.deadline) * 1000).toLocaleString()}
+                    {new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-AU", {
+                      timeZone: "Australia/Sydney",
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    }).format(new Date(Number(bounty.deadline) * 1000))}
                   </strong>
                 </span>
               </div>
               {bounty.submissionURI && (
                 <div className="evidence">
-                  <h4>Submission</h4>
+                  <h4>{t.submission}</h4>
                   <a
                     href={submissionHref(bounty.submissionURI)}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open submitted work ↗
+                    {t.openWork}
                   </a>
-                  <small>Content hash: {short(bounty.submissionHash)}</small>
+                  <small>{t.contentHash}: {short(bounty.submissionHash)}</small>
                 </div>
               )}
               {reason && (
                 <div className="verdict">
                   <div>
-                    <span>AI REVIEW</span>
+                    <span>{t.aiReview}</span>
                     <strong>{reason.score}/100</strong>
                   </div>
                   <p>{reason.reason}</p>
                   <small>
                     {reasonVerified
-                      ? "✓ Reason matches on-chain hash"
-                      : "⚠ Reason hash does not match chain"}
+                      ? t.reasonVerified
+                      : t.reasonMismatch}
                   </small>
                 </div>
               )}
             </div>
             <div className="action-box">
-              <h4>Next action</h4>
+              <h4>{t.nextAction}</h4>
               {bounty.status === 3 && (
                 <div className="countdown">
-                  <small>CHALLENGE WINDOW</small>
+                  <small>{t.challengeWindow}</small>
                   <strong>
                     {secondsLeft > 0
                       ? `00:${String(secondsLeft).padStart(2, "0")}`
-                      : "Ready to claim"}
+                      : t.readyToClaim}
                   </strong>
                   <p>
                     {secondsLeft > 0
-                      ? "The poster may dispute before this timer ends."
-                      : "Anyone can release the escrowed reward to the worker."}
+                      ? t.disputeBefore
+                      : t.anyoneRelease}
                   </p>
                 </div>
               )}
@@ -630,17 +614,17 @@ export default function Home() {
                     now >= Number(bounty.deadline)
                   }
                   onClick={() =>
-                    action("Accept bounty", "accept", [current.id])
+                    action(t.acceptAction, "accept", [current.id])
                   }
                 >
-                  Accept this bounty ↗
+                  {t.acceptButton}
                 </button>
               )}
               {bounty.status === 1 && isWorker && (
                 <>
                   <textarea
                     rows={5}
-                    placeholder="Paste your completed work here…"
+                    placeholder={t.submissionPlaceholder}
                     value={submission}
                     onChange={(e) => setSubmission(e.target.value)}
                   />
@@ -654,13 +638,13 @@ export default function Home() {
                     }
                     onClick={() => void submit()}
                   >
-                    Submit work ↗
+                    {t.submitButton}
                   </button>
                 </>
               )}
               {bounty.status === 2 && (
                 <p className="action-note">
-                  Waiting for the AI verifier to review the submitted work.
+                  {t.waitingVerifier}
                 </p>
               )}
               {bounty.status === 3 && (
@@ -669,20 +653,20 @@ export default function Home() {
                     className="primary"
                     disabled={!wallet || !!busy || secondsLeft > 0}
                     onClick={() =>
-                      action("Release payment", "claim", [current.id])
+                      action(t.releaseAction, "claim", [current.id])
                     }
                   >
-                    Release payment to worker ↗
+                    {t.releaseButton}
                   </button>
                   {isPoster && secondsLeft > 0 && (
                     <button
                       className="secondary"
                       disabled={!!busy}
                       onClick={() =>
-                        action("Open dispute", "dispute", [current.id])
+                        action(t.disputeAction, "dispute", [current.id])
                       }
                     >
-                      Dispute AI verdict
+                      {t.disputeButton}
                     </button>
                   )}
                 </>
@@ -693,23 +677,23 @@ export default function Home() {
                   <button
                     className="secondary"
                     disabled={!!busy}
-                    onClick={() => action("Refund", "refund", [current.id])}
+                    onClick={() => action(t.refundAction, "refund", [current.id])}
                   >
-                    Refund expired bounty
+                    {t.refundButton}
                   </button>
                 )}
               {bounty.status === 4 && (
                 <p className="action-note">
-                  Disputed. The configured arbiter must resolve this on chain.
+                  {t.disputedNote}
                 </p>
               )}
               {(bounty.status === 5 || bounty.status === 6) && (
                 <p className="action-note">
-                  This bounty is closed. The chain records the final transfer.
+                  {t.closedNote}
                 </p>
               )}
               <div className="contract-link">
-                <span>ESCROW CONTRACT</span>
+                <span>{t.escrowContract}</span>
                 <a
                   href={`${explorer}/address/${escrowAddress}`}
                   target="_blank"
@@ -731,21 +715,18 @@ export default function Home() {
               target="_blank"
               rel="noreferrer"
             >
-              View transaction ↗
+              {t.viewTransaction}
             </a>
           )}
         </div>
       )}
       <footer>
         <span>
-          PROOFPAY <small>· HACKATHON DEMO</small>
+          PROOFPAY <small>{t.demoTag}</small>
         </span>
-        <p>
-          Demo token has no value. AI judgments are reviewable and may be
-          disputed.
-        </p>
+        <p>{t.demoDisclaimer}</p>
         <a href={explorer} target="_blank" rel="noreferrer">
-          HSKChain Explorer ↗
+          {t.explorer}
         </a>
       </footer>
     </main>
