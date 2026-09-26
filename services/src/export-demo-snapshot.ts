@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createCipheriv, randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { keccak256, stringToHex } from "viem";
 import {
@@ -62,6 +63,21 @@ for (let id = 0n; id < count; id++) {
 }
 
 if (exported === 0) throw new Error("No paid bounties to export");
+const snapshotKey = process.env.SNAPSHOT_KEY;
+if (!snapshotKey || !/^[0-9a-f]{64}$/i.test(snapshotKey))
+  throw new Error("SNAPSHOT_KEY must be 32 random bytes in hex");
+const iv = randomBytes(12);
+const cipher = createCipheriv("aes-256-gcm", Buffer.from(snapshotKey, "hex"), iv);
+const ciphertext = Buffer.concat([
+  cipher.update(JSON.stringify(snapshot), "utf8"),
+  cipher.final(),
+]);
+const encrypted = {
+  format: "aes-256-gcm",
+  iv: iv.toString("base64"),
+  tag: cipher.getAuthTag().toString("base64"),
+  ciphertext: ciphertext.toString("base64"),
+};
 await mkdir(dirname(output), { recursive: true });
-await writeFile(output, `${JSON.stringify(snapshot, null, 2)}\n`);
-console.log(`Exported ${exported} on-chain verified paid bounties to ${output}`);
+await writeFile(output, `${JSON.stringify(encrypted, null, 2)}\n`);
+console.log(`Exported ${exported} encrypted, on-chain verified paid bounties to ${output}`);

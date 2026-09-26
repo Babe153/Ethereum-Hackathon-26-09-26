@@ -1,11 +1,31 @@
 import type { NextRequest } from "next/server";
+import { createDecipheriv } from "node:crypto";
 import { createPublicClient, fallback, http, type Abi } from "viem";
 import escrowJson from "../../../abi/BountyEscrow.abi.json";
 import snapshotJson from "../../../demo-data/snapshot.json";
 import { readSession } from "@/app/auth-session";
 
 type Context = { params: Promise<{ path: string[] }> };
-const snapshot = snapshotJson as Record<string, unknown>;
+type EncryptedSnapshot = { format: string; iv: string; tag: string; ciphertext: string };
+const encryptedSnapshot = snapshotJson as EncryptedSnapshot;
+let cachedSnapshot: Record<string, unknown> | null = null;
+
+function loadSnapshot(): Record<string, unknown> {
+  if (cachedSnapshot) return cachedSnapshot;
+  const key = process.env.SNAPSHOT_KEY;
+  if (!key || !/^[0-9a-f]{64}$/i.test(key) || encryptedSnapshot.format !== "aes-256-gcm")
+    throw new Error("Encrypted snapshot is unavailable");
+  const decipher = createDecipheriv("aes-256-gcm", Buffer.from(key, "hex"), Buffer.from(encryptedSnapshot.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(encryptedSnapshot.tag, "base64"));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(encryptedSnapshot.ciphertext, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+  const parsed: unknown = JSON.parse(plaintext);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid snapshot");
+  cachedSnapshot = parsed as Record<string, unknown>;
+  return cachedSnapshot;
+}
 const escrowAddress = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}` | undefined;
 const chain = createPublicClient({ transport: fallback([
   http(process.env.NEXT_PUBLIC_READ_RPC_URL || "https://testnet-explorer.hskchain.net/api/eth-rpc"),
@@ -65,14 +85,19 @@ async function forward(request: NextRequest, context: Context) {
 
   // Paid bounties are immutable. This snapshot was exported only after checking
   // their submission and reason hashes against HSKChain.
-  if (request.method === "GET" && Object.hasOwn(snapshot, pathname)) {
-    const metadata = snapshot._deployment as { escrow?: string; chainId?: string } | undefined;
-    const matches = metadata?.escrow?.toLowerCase() === process.env.NEXT_PUBLIC_ESCROW_ADDRESS?.toLowerCase()
-      && metadata?.chainId === (process.env.NEXT_PUBLIC_CHAIN_ID || '133');
-    if (matches) {
-    return Response.json(snapshot[pathname], {
-      headers: { "Cache-Control": "private, no-store" },
-    });
+  if (request.method === "GET" && isPrivate) {
+    let snapshot: Record<string, unknown>;
+    try { snapshot = loadSnapshot(); }
+    catch { return Response.json({ error: "Evidence snapshot unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } }); }
+    if (Object.hasOwn(snapshot, pathname)) {
+      const metadata = snapshot._deployment as { escrow?: string; chainId?: string } | undefined;
+      const matches = metadata?.escrow?.toLowerCase() === process.env.NEXT_PUBLIC_ESCROW_ADDRESS?.toLowerCase()
+        && metadata?.chainId === (process.env.NEXT_PUBLIC_CHAIN_ID || "133");
+      if (matches) {
+        return Response.json(snapshot[pathname], {
+          headers: { "Cache-Control": "private, no-store" },
+        });
+      }
     }
   }
 
