@@ -16,6 +16,7 @@ import {
 import escrowJson from "../abi/BountyEscrow.abi.json";
 import tokenJson from "../abi/MockUSDT.abi.json";
 import { hsk } from "./providers";
+import ServiceHealth from "./service-health";
 
 const escrowAbi = escrowJson as Abi;
 const tokenAbi = tokenJson as Abi;
@@ -101,6 +102,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const [verificationEnds, setVerificationEnds] = useState<{ id: bigint; at: number } | null>(null);
   const configured =
     !!escrowAddress &&
     !!tokenAddress &&
@@ -156,6 +158,19 @@ export default function Home() {
     [entries, selected],
   );
   const bounty = current?.bounty;
+  useEffect(() => {
+    let active = true;
+    setVerificationEnds(null);
+    if (!escrowAddress || current?.id === undefined || bounty?.status !== 2) return;
+    const id = current.id;
+    void Promise.all([
+      publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: 'submittedAt', args: [id] }),
+      publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: 'verificationTimeout' }),
+    ]).then(([at, timeout]) => {
+      if (active && Number(at) > 0) setVerificationEnds({ id, at: Number(at) + Number(timeout) });
+    }).catch(() => { /* Older contracts do not have timeout recovery. Never expose an unsupported action. */ });
+    return () => { active = false; };
+  }, [current?.id, bounty?.status]);
   const challengeEnds = bounty ? Number(bounty.approvedAt) + 60 : 0;
   const secondsLeft = Math.max(0, challengeEnds - now);
   const isPoster = !!(
@@ -388,6 +403,7 @@ export default function Home() {
           </button>
         </div>
       )}
+      <ServiceHealth url={serviceUrl} />
       <section className="workspace">
         <div className="workspace-head">
           <div>
@@ -659,9 +675,13 @@ export default function Home() {
                 </>
               )}
               {bounty.status === 2 && (
-                <p className="action-note">
-                  Waiting for the AI verifier to review the submitted work.
-                </p>
+                <div className="action-note">
+                  <p>Waiting for the AI verifier to review the submitted work.</p>
+                  {verificationEnds?.id === current.id ? <>
+                    <p>{now < verificationEnds.at ? `Timeout arbitration available in ${Math.max(0, verificationEnds.at - now)} seconds.` : 'Verification is overdue. The poster or worker can request arbitration; funds remain escrowed until the arbiter decides.'}</p>
+                    {(isPoster || isWorker) && <button className="secondary" disabled={!wallet || !!busy || now < verificationEnds.at} onClick={() => action('Request timeout arbitration', 'escalateVerificationTimeout', [current.id])}>Request timeout arbitration</button>}
+                  </> : <p>Timeout recovery is unavailable or could not be read on this deployment. The original contract requires redeployment to support it.</p>}
+                </div>
               )}
               {bounty.status === 3 && (
                 <>

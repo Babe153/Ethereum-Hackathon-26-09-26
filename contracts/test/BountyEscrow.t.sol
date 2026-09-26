@@ -92,6 +92,40 @@ contract BountyEscrowTest is Test {
         assertEq(token.balanceOf(poster), 1000e6);
     }
 
+    function testTimeoutWorkerCanEscalateAndArbiterPays() public {
+        uint256 id = submitted();
+        vm.warp(block.timestamp + escrow.verificationTimeout());
+        vm.prank(worker);
+        escrow.escalateVerificationTimeout(id);
+        assertEq(uint8(escrow.getBounty(id).status), uint8(BountyEscrow.Status.Disputed));
+        vm.prank(arbiter);
+        escrow.resolve(id, true);
+        assertEq(token.balanceOf(worker), AMOUNT);
+    }
+
+    function testTimeoutCannotEscalateEarlyOrByStranger() public {
+        uint256 id = submitted();
+        vm.prank(poster);
+        vm.expectRevert(BountyEscrow.DeadlineNotPassed.selector);
+        escrow.escalateVerificationTimeout(id);
+        vm.warp(block.timestamp + escrow.verificationTimeout());
+        vm.expectRevert(BountyEscrow.Unauthorized.selector);
+        escrow.escalateVerificationTimeout(id);
+    }
+
+    function testTimeoutPosterCanEscalateAndVerifierCannotOverride() public {
+        uint256 id = submitted();
+        vm.warp(block.timestamp + escrow.verificationTimeout());
+        vm.prank(poster);
+        escrow.escalateVerificationTimeout(id);
+        vm.prank(verifier);
+        vm.expectRevert(BountyEscrow.InvalidState.selector);
+        escrow.verify(id, true, keccak256("late"));
+        vm.prank(arbiter);
+        escrow.resolve(id, false);
+        assertEq(token.balanceOf(poster), 1000e6);
+    }
+
     function testCannotRefundSubmitted() public {
         uint256 id = submitted();
         vm.warp(block.timestamp + 3600);

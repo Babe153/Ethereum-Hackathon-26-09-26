@@ -760,3 +760,13 @@ footer a {
     line-height: 1.5;
   }
 }
+/* Live process health is independent of cached completed-task evidence. */
+.service-health { margin: 24px 0; padding: 20px; border: 1px solid #d9e1d8; border-radius: 14px; background: #f8faf6; }
+.service-health > div:first-child { display: flex; justify-content: space-between; gap: 12px; }
+.service-health small { font-size: 11px; opacity: .7; }
+.service-health-items { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.service-indicator { display: grid; gap: 4px; padding: 12px 16px; border-radius: 9px; background: #e8e9e7; flex: 1; min-width: 150px; }
+.service-indicator.online { background: #e4f0dd; color: #285231; }
+.service-indicator.degraded { background: #fff1d6; color: #765311; }
+.service-indicator.offline { background: #f9e4df; color: #8d3328; }
+.service-indicator span, .service-health p { font-size: 12px; line-height: 1.6; }

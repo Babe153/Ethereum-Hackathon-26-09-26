@@ -56,7 +56,7 @@ The content and criteria are untrusted model inputs. The prompt instructs the mo
 - The web app bundles a read-only snapshot of paid tasks. The export command verifies every included submission and reason against the corresponding on-chain hashes before writing it. Live writes still depend on the local service and temporary tunnel.
 - The on-chain hashes authenticate the submission text and reason text, not the displayed numeric score. The score remains a verifier-service record and should not be treated as a cryptographic proof of judgment quality.
 - The keeper depends on an online process and gas. Permissionless `claim` provides a manual fallback.
-- After a task is submitted, there is no timeout recovery if the verifier is unavailable. This must be fixed before any real-value deployment.
+- On new deployments, either participant may call `escalateVerificationTimeout` 10 minutes after the latest submission. This moves Submitted to Disputed without moving funds; the trusted arbiter must still resolve it. Older deployments do not support this recovery path.
 
 ## Validation
 
@@ -67,7 +67,7 @@ The content and criteria are untrusted model inputs. The prompt instructs the mo
 
 ## Roadmap
 
-1. Verifier timeout and recovery arbitration for `Submitted`.
+1. Deploy and validate the implemented verifier timeout arbitration upgrade; add arbiter availability recovery in a future version.
 2. Decentralized or multi-party verification and arbitration; stronger proof of model execution (for example TEE attestation).
 3. Durable content-addressed storage and publicly reachable submission API.
 4. Real stablecoin support only after contract security review and policy analysis.

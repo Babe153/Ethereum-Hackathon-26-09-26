@@ -21,7 +21,7 @@ const count = (await publicClient.readContract({
   abi: escrow,
   functionName: "bountyCount",
 })) as bigint;
-const snapshot: Record<string, unknown> = {};
+const snapshot: Record<string, unknown> = { _deployment: { escrow: escrowAddress, chainId: String(await publicClient.getChainId()) } };
 let exported = 0;
 
 for (let id = 0n; id < count; id++) {

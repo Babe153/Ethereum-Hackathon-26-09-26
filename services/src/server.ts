@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { config as loadEnv } from "dotenv";
 import { resolve } from "node:path";
 import { readReason, readSubmission, saveSubmission } from "./store.js";
+import { readHealth } from "./health.js";
 
 loadEnv({ path: resolve(process.cwd(), "../.env") });
 const port = Number(process.env.SERVICE_PORT || 8787);
@@ -13,6 +14,7 @@ const json = (body: unknown, status = 200) => ({
 
 createServer(async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -24,7 +26,7 @@ createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", baseUrl);
     if (req.method === "GET" && url.pathname === "/health")
-      result = json({ ok: true, demoMode: process.env.DEMO_MODE === "1" });
+      result = json({ ok: true, demoMode: process.env.DEMO_MODE === "1", checkedAt: Date.now(), services: { api: { status: 'online', lastSeen: Date.now() }, agent: await readHealth('agent'), verifier: await readHealth('verifier') } });
     else if (req.method === "POST" && url.pathname === "/submissions") {
       let raw = "";
       for await (const chunk of req) {

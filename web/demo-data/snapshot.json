@@ -34,5 +34,9 @@
     "score": 100,
     "pass": true,
     "hash": "0x0df065ba65f054e36d28c2c0b3a96e9fff002cd5f1ebc0084ca62f02c445447f"
+  },
+  "_deployment": {
+    "escrow": "0xE0c95F19d607bA0B3100F1c942589B63D4f3Ea03",
+    "chainId": "133"
   }
 }

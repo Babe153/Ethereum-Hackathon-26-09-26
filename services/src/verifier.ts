@@ -9,6 +9,10 @@ import {
 } from "./config.js";
 import { judge } from "./llm.js";
 import { saveReason } from "./store.js";
+import { startHeartbeat } from "./health.js";
+
+let health: ReturnType<typeof startHeartbeat>;
+let scanFailed = false;
 
 const { account, wallet } = walletFor("VERIFIER");
 const busy = new Set<string>();
@@ -67,6 +71,8 @@ async function verify(id: bigint) {
       `Verified #${id}: ${verdict.pass}, score ${verdict.score}, ${tx}`,
     );
   } catch (error) {
+    scanFailed = true;
+    health?.failed();
     console.error(`Verification #${id}:`, error);
   } finally {
     busy.delete(String(id));
@@ -84,6 +90,7 @@ if (onchainVerifier.toLowerCase() !== account.address.toLowerCase())
     `Verifier key ${account.address} differs from contract verifier ${onchainVerifier}`,
   );
 console.log(`Verifier ${account.address} watching ${escrowAddress}`);
+health = startHeartbeat('verifier');
 publicClient.watchContractEvent({
   address: escrowAddress!,
   abi: escrow,
@@ -100,6 +107,7 @@ publicClient.watchContractEvent({
 async function settleApproved() {
   if (settlementScanRunning) return;
   settlementScanRunning = true;
+  scanFailed = false;
   try {
     const latest = await publicClient.getBlock();
     const window = (await publicClient.readContract({
@@ -140,12 +148,16 @@ async function settleApproved() {
         settledRecently.set(String(id), Date.now());
         console.log(`Automatically released bounty #${id}: ${tx}`);
       } catch (error) {
+        scanFailed = true;
+        health.failed();
         console.error(`Settlement #${id}:`, error);
       } finally {
         settling.delete(String(id));
       }
     }
+    if (!scanFailed) health.healthy();
   } catch (error) {
+    health.failed();
     console.error("Settlement scan:", error);
   } finally {
     settlementScanRunning = false;

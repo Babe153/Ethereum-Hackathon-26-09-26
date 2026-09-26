@@ -10,6 +10,8 @@ Live testnet demo: [proofpay-hskchain.vercel.app](https://proofpay-hskchain.verc
 
 ## What works
 
+**New local P0 changes:** latest-submission timeout arbitration (10 minutes) and independent API/Agent/Verifier health indicators. The existing public deployment is not automatically upgraded. See `docs/P0-UPGRADE.md` for tests, compatibility and rollout instructions.
+
 - Create a bounty by approving and locking 6-decimal `mUSDT` in `BountyEscrow`.
 - Accept and submit as a human via the web app, or let an agent wallet do both.
 - Store submission text in the service; keep its URI and Keccak-256 hash on chain.
@@ -112,4 +114,4 @@ The deployed Next.js app uses its `/api` route. For completed paid tasks, it ser
 
 ## Prototype limitations
 
-The verifier and arbiter are trusted keys. The model can make mistakes, and a reason hash proves only that a stored explanation matches the committed bytes, not that the verdict or numeric score is correct. A submitted task can become stuck if the verifier never responds; this prototype has no timeout arbitration path for `Submitted`. The API has local file storage and no abuse protection. The bundled snapshot keeps completed examples readable, but does not store new work when the local service is offline. Before handling real funds, add independent security review, a robust dispute process, durable content storage, and a recovery path for unavailable verifiers.
+The verifier and arbiter are trusted keys. The model can make mistakes, and a reason hash proves only that a stored explanation matches the committed bytes, not that the verdict or numeric score is correct. New deployments allow the poster or worker to escalate a Submitted task to arbitration 10 minutes after its latest submission. The previously deployed contract does not gain this feature automatically. The API has local file storage and no abuse protection. The bundled snapshot keeps completed examples readable, but does not store new work when the local service is offline. Before handling real funds, add independent security review, a robust dispute process, durable content storage, and a recovery path for unavailable verifiers.

@@ -8,6 +8,10 @@ import {
   walletFor,
 } from "./config.js";
 import { produce } from "./llm.js";
+import { startHeartbeat } from "./health.js";
+
+let health: ReturnType<typeof startHeartbeat>;
+let scanFailed = false;
 
 const { account, wallet } = walletFor("AGENT");
 const busy = new Set<string>();
@@ -101,6 +105,8 @@ async function work(id: bigint) {
     submittedRecently.set(String(id), Date.now());
     console.log(`Submitted bounty #${id}: ${submitTx}`);
   } catch (error) {
+    scanFailed = true;
+    health?.failed();
     console.error(`Bounty #${id}:`, error);
   } finally {
     busy.delete(String(id));
@@ -110,6 +116,7 @@ async function work(id: bigint) {
 async function scan() {
   if (scanRunning) return;
   scanRunning = true;
+  scanFailed = false;
   try {
     const count = (await publicClient.readContract({
       address: escrowAddress!,
@@ -117,7 +124,9 @@ async function scan() {
       functionName: "bountyCount",
     })) as bigint;
     for (let id = 0n; id < count; id++) await work(id);
+    if (!scanFailed) health.healthy();
   } catch (error) {
+    health.failed();
     console.error("Agent scan:", error);
   } finally {
     scanRunning = false;
@@ -125,6 +134,7 @@ async function scan() {
 }
 
 await assertNetwork();
+health = startHeartbeat('agent');
 console.log(`Agent ${account.address} watching ${escrowAddress}`);
 void scan();
 publicClient.watchContractEvent({

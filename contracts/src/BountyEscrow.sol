@@ -30,6 +30,9 @@ contract BountyEscrow is ReentrancyGuard {
     uint64 public immutable challengeWindow;
     uint256 public bountyCount;
     mapping(uint256 => Bounty) private bounties;
+    // Separate mapping preserves the existing getBounty tuple for older deployments.
+    uint64 public constant verificationTimeout = 10 minutes;
+    mapping(uint256 => uint64) public submittedAt;
 
     event BountyCreated(uint256 indexed id, address indexed poster, uint256 amount, uint64 deadline);
     event Accepted(uint256 indexed id, address indexed worker);
@@ -94,6 +97,7 @@ contract BountyEscrow is ReentrancyGuard {
         b.submissionHash = contentHash;
         b.reasonHash = bytes32(0);
         b.status = Status.Submitted;
+        submittedAt[id] = uint64(block.timestamp);
         emit Submitted(id, uri, contentHash);
     }
 
@@ -117,6 +121,17 @@ contract BountyEscrow is ReentrancyGuard {
         if (msg.sender != b.poster) revert Unauthorized();
         if (b.status != Status.Approved) revert InvalidState();
         if (block.timestamp >= uint256(b.approvedAt) + challengeWindow) revert ChallengeClosed();
+        b.status = Status.Disputed;
+        emit Disputed(id);
+    }
+
+    /// @notice Either participant may request arbitration when verification is overdue.
+    /// Funds remain escrowed until the designated arbiter decides.
+    function escalateVerificationTimeout(uint256 id) external {
+        Bounty storage b = _bounty(id);
+        if (msg.sender != b.poster && msg.sender != b.worker) revert Unauthorized();
+        if (b.status != Status.Submitted) revert InvalidState();
+        if (block.timestamp < uint256(submittedAt[id]) + verificationTimeout) revert DeadlineNotPassed();
         b.status = Status.Disputed;
         emit Disputed(id);
     }

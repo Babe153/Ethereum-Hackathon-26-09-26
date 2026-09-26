@@ -19,9 +19,14 @@ async function forward(request: NextRequest, context: Context) {
   // Paid bounties are immutable. This snapshot was exported only after checking
   // their submission and reason hashes against HSKChain.
   if (request.method === "GET" && Object.hasOwn(snapshot, pathname)) {
+    const metadata = snapshot._deployment as { escrow?: string; chainId?: string } | undefined;
+    const matches = metadata?.escrow?.toLowerCase() === process.env.NEXT_PUBLIC_ESCROW_ADDRESS?.toLowerCase()
+      && metadata?.chainId === (process.env.NEXT_PUBLIC_CHAIN_ID || '133');
+    if (matches) {
     return Response.json(snapshot[pathname], {
       headers: { "Cache-Control": "public, max-age=300" },
     });
+    }
   }
 
   const upstream = process.env.SERVICE_UPSTREAM_URL || "http://localhost:8787";
