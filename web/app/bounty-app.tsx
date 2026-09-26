@@ -496,8 +496,10 @@ useEffect(() => {
     setBusy(name);
     setNotice("");
     setTxHash(null);
+    let sentTransaction = false;
     try {
       const hash = await action();
+      sentTransaction = true;
       setTxHash(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error(t.reverted);
@@ -505,7 +507,27 @@ useEffect(() => {
       await refresh();
       return true;
     } catch (error) {
-      setNotice(`${name}: ${errorText(error, locale)}`);
+      let detail = errorText(error, locale);
+      if (name === t.releaseAction && current) {
+        try {
+          const latest = (await publicClient.readContract({
+            address: escrowAddress!, abi: escrowAbi, functionName: "getBounty", args: [current.id],
+          })) as Bounty;
+          if (latest.status === 5) {
+            detail = sentTransaction
+              ? locale === "zh"
+                ? "赏金已由另一笔交易放款。你的重复放款交易失败，但接单者已收到赏金。"
+                : "Another transaction paid the bounty first. Your duplicate transaction failed; the worker has been paid."
+              : locale === "zh"
+                ? "赏金已放款给接单者，无需再次操作。"
+                : "This bounty has already been paid to the worker. No further action is needed.";
+          }
+        } catch {
+          // Keep the original error if the chain cannot be read right now.
+        }
+      }
+      setNotice(`${name}: ${detail}`);
+      await refresh();
       return false;
     } finally {
       setBusy("");
@@ -671,7 +693,6 @@ useEffect(() => {
         publicClient.getBlock(),
       ]);
       if (latest.status !== 3) {
-        await refresh();
         throw new Error(locale === "zh"
           ? (latest.status === 5 ? "赏金已结算，无需重复付款。" : "任务状态已改变，目前不能放款。")
           : (latest.status === 5 ? "Reward already paid. No further payment is needed." : "The task status changed; payment is unavailable."));
@@ -684,8 +705,6 @@ useEffect(() => {
       });
       return wallet.writeContract({ ...request, chain: hsk, account: address });
     });
-    // The keeper may settle between the preflight and the wallet confirmation.
-    await refresh();
   }
 
   function action(name: string, functionName: string, args: unknown[]) {
