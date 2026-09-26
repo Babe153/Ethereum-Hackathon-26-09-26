@@ -31,6 +31,33 @@ createServer(async (req, res) => {
   let result;
   try {
     const url = new URL(req.url || "/", baseUrl);
+    // One public tunnel serves the old escrow and the isolated v2 service.
+    // The new Vercel deployment sends /v2 requests; old deployments keep their paths.
+    if (url.pathname.startsWith("/v2/")) {
+      if (!authorized(req.headers["x-proofpay-service-secret"] as string | undefined)) {
+        res.writeHead(403).end(JSON.stringify({ error: "Service authentication required" }));
+        return;
+      }
+      let body = "";
+      if (req.method === "POST") {
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 30_000) throw new Error("Request too large");
+        }
+      }
+      const target = `http://127.0.0.1:8788${url.pathname.slice(3)}${url.search}`;
+      const forwarded = await fetch(target, {
+        method: req.method,
+        headers: {
+          "Content-Type": "application/json",
+          "x-proofpay-service-secret": req.headers["x-proofpay-service-secret"] as string,
+        },
+        body: req.method === "POST" ? body : undefined,
+        signal: AbortSignal.timeout(5_000),
+      });
+      res.writeHead(forwarded.status).end(await forwarded.text());
+      return;
+    }
     if (url.pathname !== "/health" && !authorized(req.headers["x-proofpay-service-secret"] as string | undefined)) {
       res.writeHead(403).end(JSON.stringify({ error: "Service authentication required" }));
       return;

@@ -129,11 +129,14 @@ async function forward(request: NextRequest, context: Context) {
   }
 
   const upstream = process.env.SERVICE_UPSTREAM_URL || "http://localhost:8787";
+  const upstreamPrefix = process.env.SERVICE_UPSTREAM_PREFIX || "";
   const serviceSecret = process.env.SERVICE_PROXY_SECRET;
   if (isPrivate && !serviceSecret)
     return Response.json({ error: "Submission service authentication unavailable" }, { status: 503 });
   try {
-    const response = await fetch(new URL(pathname, upstream), {
+    if (upstreamPrefix !== "" && upstreamPrefix !== "/v2")
+      throw new Error("Unsupported service upstream prefix");
+    const response = await fetch(new URL(`${upstreamPrefix}${pathname}`, upstream), {
       method: request.method,
       headers: {
         "Content-Type": "application/json",

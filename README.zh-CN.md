@@ -121,7 +121,7 @@ npm ci --prefix web
 | 合约地址 | 服务端 `TOKEN_ADDRESS` / `ESCROW_ADDRESS` 与网页端对应的 `NEXT_PUBLIC_*` 地址必须一致 |
 | 服务钱包 | 根目录配置 Agent、Verifier 等测试钱包；交易钱包需要测试 HSK 支付 Gas |
 | AI | 配置 `DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`；真实调用使用 `DEMO_MODE=0` |
-| 服务代理 | 网页端 `NEXT_PUBLIC_SERVICE_URL=/api`，本地 `SERVICE_UPSTREAM_URL=http://localhost:8787` |
+| 服务代理 | 新版网页端设置 `NEXT_PUBLIC_SERVICE_URL=/api`、`SERVICE_UPSTREAM_URL=http://localhost:8787` 和 `SERVICE_UPSTREAM_PREFIX=/v2`；旧任务使用独立的历史站点 |
 | 服务端密钥 | `SERVICE_PROXY_SECRET`、`SNAPSHOT_KEY` 在两端保持一致；`AUTH_SECRET` 仅配置在网页服务端 |
 
 三个服务端密钥分别使用独立的随机 32 字节十六进制值。私钥和 API Key 不可放入 `NEXT_PUBLIC_*` 变量或提交到 Git。

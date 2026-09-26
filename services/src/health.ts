@@ -11,7 +11,7 @@ export function classify(beat: Beat | null, now = Date.now()) {
     return { status: 'unknown', lastSeen: beat.at };
   return { status: beat.state === 'online' ? 'online' : 'degraded', lastSeen: beat.at };
 }
-function directory() { return resolve(process.cwd(), 'data', 'health'); }
+function directory() { return resolve(process.env.DEMO_DATA_DIR || resolve(process.cwd(), 'data'), 'health'); }
 export async function readHealth(role: Role) {
   try { return classify(JSON.parse(await readFile(resolve(directory(), `${role}.json`), 'utf8'))); }
   catch { return classify(null); }

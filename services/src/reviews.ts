@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
-const reviewDir = resolve(process.cwd(), "data", "reviews");
+const reviewDir = resolve(process.env.DEMO_DATA_DIR || resolve(process.cwd(), "data"), "reviews");
 export const humanReviewWindowMs = 5 * 60_000;
 
 export type PendingReview = {

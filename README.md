@@ -121,7 +121,7 @@ Copy the root `.env.example` to `.env`, and `web/.env.example` to `web/.env.loca
 | Contract addresses | Backend `TOKEN_ADDRESS` / `ESCROW_ADDRESS` must match their `NEXT_PUBLIC_*` counterparts in the web app |
 | Service wallets | Configure test wallets for the Agent, Verifier and other roles in the root environment; transaction wallets need test HSK for gas |
 | AI | Set `DEEPSEEK_API_KEY` or `OPENAI_API_KEY`; use `DEMO_MODE=0` for real model calls |
-| Service proxy | Set `NEXT_PUBLIC_SERVICE_URL=/api` and, locally, `SERVICE_UPSTREAM_URL=http://localhost:8787` in the web environment |
+| Service proxy | Set `NEXT_PUBLIC_SERVICE_URL=/api`, `SERVICE_UPSTREAM_URL=http://localhost:8787`, and `SERVICE_UPSTREAM_PREFIX=/v2` for the current testnet escrow. Historical tasks use the separate legacy deployment. |
 | Server secrets | Match `SERVICE_PROXY_SECRET` and `SNAPSHOT_KEY` across both environments; set `AUTH_SECRET` only on the web server |
 
 Use an independent random 32-byte hexadecimal value for each of the three server secrets. Never put private keys or API keys in `NEXT_PUBLIC_*` variables or commit them to Git.

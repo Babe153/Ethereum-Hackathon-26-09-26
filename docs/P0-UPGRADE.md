@@ -45,8 +45,22 @@ Deploy a new escrow to enable this capability, synchronize the service and web e
 addresses, and restart services / rebuild the web app. Existing tasks and funds remain
 in the old escrow; preserve access to that deployment to finish them. They cannot be
 migrated simply by changing configuration. The UI probes the capability and retains
-delayed settlement when support cannot be confirmed. No contract was deployed as part
-of this code change.
+delayed settlement when support cannot be confirmed. The deployment below followed
+the initial code change.
 
 Validation: the local EVM test covers poster-only authorization, early payout, worker
 balance changes, rejection of repeat payouts and exclusion of disputed/unverified tasks.
+
+### September 26 testnet rollout
+
+- Existing token: `0x41c4986C36Af380d0E5Ba910Bd04947574918ca8`.
+- Previous escrow: `0xE0c95F19d607bA0B3100F1c942589B63D4f3Ea03`; existing tasks remain there.
+- Historical tasks remain available at https://proofpay-hskchain-legacy.vercel.app.
+- New escrow: `0x989c71426552fF963e2A6647c05565003A922ff5`, deployed with
+  `contracts/script/DeployEscrowOnly.s.sol` in transaction
+  `0x07d6c03774f9ce3e97a31f9a3c5ec3e1d54b1accafb45052af72b497a18f3e2c`.
+- The new service uses port 8788 and `services/data/v2`, with the existing tunnel's
+  `/v2/` path forwarded by the previous API on port 8787. Run
+  `bash scripts/start-v2-services.sh --foreground` from the repository root.
+- The web proxy for the new deployment needs `SERVICE_UPSTREAM_PREFIX=/v2`.
+  The historical deployment leaves this variable unset.

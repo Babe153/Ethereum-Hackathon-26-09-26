@@ -1728,6 +1728,11 @@ useEffect(() => {
           PROOFPAY <small>{t.demoTag}</small>
         </span>
         <p>{t.demoDisclaimer}</p>
+        {escrowAddress?.toLowerCase() === "0x989c71426552ff963e2a6647c05565003a922ff5" && (
+          <a href={`https://proofpay-hskchain-legacy.vercel.app${zh ? "/zh" : ""}`}>
+            {zh ? "查看旧版任务 ↗" : "View earlier bounties ↗"}
+          </a>
+        )}
         <a href={explorer} target="_blank" rel="noreferrer">
           {t.explorer}
         </a>

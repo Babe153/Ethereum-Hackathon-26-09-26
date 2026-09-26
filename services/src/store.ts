@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { keccak256, stringToHex } from "viem";
 
-const dir = resolve(process.cwd(), "data");
+const dir = resolve(process.env.DEMO_DATA_DIR || resolve(process.cwd(), "data"));
 const submissionDir = resolve(dir, "submissions");
 const reasonDir = resolve(dir, "reasons");
 
