@@ -8,6 +8,18 @@ GitHub repository: [Babe153/Ethereum-Hackathon-26-09-26](https://github.com/Babe
 
 Live testnet demo: [English](https://proofpay-hskchain.vercel.app) · [简体中文](https://proofpay-hskchain.vercel.app/zh). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#4 used real DeepSeek API calls and paid the workers on chain. The five completed tasks have a read-only, on-chain-hash-verified evidence snapshot bundled into the web app. Existing on-chain criteria and review reasons remain in their original language on both pages. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
 
+## User routes
+
+| Journey | English | 简体中文 |
+| --- | --- | --- |
+| Browse and filter bounties | `/` | `/zh` |
+| Post a task | `/post` | `/zh/post` |
+| Accept, submit and inspect a task | `/tasks/:id` | `/zh/tasks/:id` |
+
+Connecting an HSKChain wallet is the demo sign-in; browsing stays public. A worker can upload a `.txt`, `.md`, `.json` or `.csv` deliverable (up to 20 KB), or paste text, on the task detail route. The file's text becomes the on-chain-hashed submission for DeepSeek to review. The task page shows the review score as a completion percentage, the verdict, the review reason, and whether the reason matches its on-chain hash. The score is an AI assessment, not a payment percentage. The first scripted task is labelled separately from real DeepSeek results.
+
+New tasks are available to human workers by default. A poster can opt in to automatic demo AI agent claiming on the posting page; this stores a visible agent-mode prefix with the on-chain criteria. The worker service claims only these opted-in tasks, while the DeepSeek verifier reviews both human and AI submissions. Restart the agent and verifier processes after changing this setting in code. The numeric score is served from the demo API; only the review reason's hash is committed on chain.
+
 ## What works
 
 **New local P0 changes:** latest-submission timeout arbitration (10 minutes) and independent API/Agent/Verifier health indicators. The existing public deployment is not automatically upgraded. See `docs/P0-UPGRADE.md` for tests, compatibility and rollout instructions.
@@ -92,6 +104,8 @@ cd web && npm run dev
 Open `http://localhost:3000`, connect a browser wallet on HSKChain testnet and get test HSK for its gas. The page can mint its own `mUSDT` demo balance. A real WalletConnect project ID is optional for injected wallets; this MVP's RainbowKit list includes browser wallets only.
 
 For a repeatable terminal rehearsal using the deployer wallet, run `cd services && npm run seed`. It mints or reuses 100 demo mUSDT, approves the escrow, and posts a 30-minute task. The agent and verifier processes then pick it up. To change the task wording, set `DEMO_CRITERIA` before running the command.
+
+To leave a bounty open for human workers instead, set `DEMO_AGENT_MODE=0` when running the seed command. Set `DEMO_DEADLINE_MINUTES` to change its lifetime (1–43,200 minutes). The AI agent ignores human-open tasks.
 
 If a poster disputes a task, the demo arbiter can run `bash scripts/resolve-dispute.sh BOUNTY_ID worker` to pay the worker, or replace `worker` with `poster` to refund the poster. This signs with the locally stored arbiter key.
 

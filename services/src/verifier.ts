@@ -10,6 +10,7 @@ import {
 import { judge } from "./llm.js";
 import { saveReason } from "./store.js";
 import { startHeartbeat } from "./health.js";
+import agentMode from "../../web/agent-mode.json" with { type: "json" };
 
 let health: ReturnType<typeof startHeartbeat>;
 let scanFailed = false;
@@ -52,7 +53,8 @@ async function verify(id: bigint) {
       keccak256(stringToHex(content)) !== bounty.submissionHash
     )
       throw new Error("On-chain submission hash mismatch");
-    const verdict = await judge(bounty.criteria, content);
+    const criteria = bounty.criteria.startsWith(agentMode.prefix) ? bounty.criteria.slice(agentMode.prefix.length) : bounty.criteria;
+    const verdict = await judge(criteria, content);
     const reasonHash = keccak256(stringToHex(verdict.reason));
     const tx = await wallet.writeContract({
       address: escrowAddress!,

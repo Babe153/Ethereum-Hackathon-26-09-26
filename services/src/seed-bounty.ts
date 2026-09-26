@@ -2,6 +2,7 @@ import { createWalletClient, http, parseUnits, type Abi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import tokenAbiJson from "../../shared/MockUSDT.abi.json" with { type: "json" };
 import { assertNetwork, assertWriteNetwork, chain, escrow, escrowAddress, publicClient } from "./config.js";
+import agentMode from "../../web/agent-mode.json" with { type: "json" };
 
 if (chain.id !== 133) {
   throw new Error("Expected HSKChain testnet chain ID 133");
@@ -21,9 +22,12 @@ const wallet = createWalletClient({
 });
 const tokenAbi = tokenAbiJson as Abi;
 const amount = parseUnits("100", 6);
-const criteria =
-  process.env.DEMO_CRITERIA ||
-  "Write one paragraph explaining why a pre-funded escrow protects a freelancer. Include the exact words escrow and challenge window.";
+const autoAgent = process.env.DEMO_AGENT_MODE !== "0";
+const criteria = (autoAgent ? agentMode.prefix : "") + (process.env.DEMO_CRITERIA ||
+  "Write one paragraph explaining why a pre-funded escrow protects a freelancer. Include the exact words escrow and challenge window.");
+const deadlineMinutes = Number(process.env.DEMO_DEADLINE_MINUTES || 30);
+if (!Number.isInteger(deadlineMinutes) || deadlineMinutes < 1 || deadlineMinutes > 43200)
+  throw new Error("DEMO_DEADLINE_MINUTES must be 1-43200");
 let nonce = await publicClient.getTransactionCount({
   address: account.address,
   blockTag: "pending",
@@ -67,8 +71,8 @@ const allowance = (await publicClient.readContract({
 })) as bigint;
 if (allowance < amount)
   await send(tokenAddress, tokenAbi, "approve", [escrowAddress, amount]);
-const deadline = BigInt(Math.floor(Date.now() / 1000) + 30 * 60);
+const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineMinutes * 60);
 await send(escrowAddress, escrow, "createBounty", [amount, criteria, deadline]);
 console.log(
-  "Created a 100 mUSDT test bounty. Watch the agent and verifier terminals.",
+  autoAgent ? "Created an AI agent test bounty. Watch the agent and verifier terminals." : "Created a human-open test bounty. The AI agent will leave it open.",
 );

@@ -9,6 +9,7 @@ import {
 } from "./config.js";
 import { produce } from "./llm.js";
 import { startHeartbeat } from "./health.js";
+import agentMode from "../../web/agent-mode.json" with { type: "json" };
 
 let health: ReturnType<typeof startHeartbeat>;
 let scanFailed = false;
@@ -31,6 +32,8 @@ async function work(id: bigint) {
       return;
     }
     if (bounty.deadline <= BigInt(Math.floor(Date.now() / 1000))) return;
+    // Human bounties remain open in the marketplace. The agent only claims opt-in tasks.
+    if (!bounty.criteria.startsWith(agentMode.prefix)) return;
     if (
       bounty.status !== 0 &&
       !(
@@ -78,7 +81,7 @@ async function work(id: bigint) {
       throw new Error(
         "Accepted transaction is not yet visible to RPC; periodic scan will retry",
       );
-    const content = await produce(bounty.criteria);
+    const content = await produce(bounty.criteria.slice(agentMode.prefix.length));
     const response = await fetch(
       `${process.env.SERVICE_BASE_URL || "http://localhost:8787"}/submissions`,
       {
