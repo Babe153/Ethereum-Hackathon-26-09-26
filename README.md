@@ -6,7 +6,7 @@ ProofPay locks a demo reward on HSKChain, lets a human or an AI agent deliver wo
 
 GitHub repository: [Babe153/Ethereum-Hackathon-26-09-26](https://github.com/Babe153/Ethereum-Hackathon-26-09-26).
 
-Live testnet demo: [English](https://proofpay-hskchain.vercel.app) · [简体中文](https://proofpay-hskchain.vercel.app/zh). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#5 used real DeepSeek API calls and paid the workers on chain. Completed tasks have an on-chain-hash-verified evidence snapshot bundled into the web app, served only after wallet authentication and role checks. Existing on-chain criteria and review reasons remain in their original language on both pages. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
+Live testnet demo: [English](https://proofpay-hskchain.vercel.app) · [简体中文](https://proofpay-hskchain.vercel.app/zh). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#5 used real DeepSeek API calls and paid the workers on chain. Paid tasks #0–#5 and #7 have an on-chain-hash-verified, encrypted evidence snapshot bundled into the web app, served only after wallet authentication and role checks. Task criteria and review reasons remain in their original language on both pages. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
 
 ## User routes
 
@@ -90,7 +90,7 @@ If Foundry is installed at `~/.foundry/bin` but not on your `PATH`, prepend that
 
 1. From `services/`, run `npm run wallets` to create four fresh **demo-only** wallets in the root `.env`. It refuses to overwrite an existing file. Or copy `.env.example` and enter your own demo keys and addresses.
 2. Fund the printed **deployer**, **agent**, and **verifier** addresses with test HSK. Keep the arbiter wallet accessible for disputes.
-3. In `.env`, set `DEEPSEEK_API_KEY` for real DeepSeek calls (`DEEPSEEK_MODEL=deepseek-flash`), or `OPENAI_API_KEY` for OpenAI. DeepSeek takes priority if both are present. Keep `DEMO_MODE=0` for real calls. To rehearse without a key, set `DEMO_MODE=1` and state clearly that the verdict is scripted. Do not put a key in the repository or browser environment. Generate two independent 32-byte hex secrets: `SERVICE_PROXY_SECRET` in both the service and web server environments, and `AUTH_SECRET` in the web server environment only. The private API fails closed without these values.
+3. In `.env`, set `DEEPSEEK_API_KEY` for real DeepSeek calls (`DEEPSEEK_MODEL=deepseek-flash`), or `OPENAI_API_KEY` for OpenAI. DeepSeek takes priority if both are present. Keep `DEMO_MODE=0` for real calls. To rehearse without a key, set `DEMO_MODE=1` and state clearly that the verdict is scripted. Do not put a key in the repository or browser environment. Generate three independent 32-byte hex secrets: `SERVICE_PROXY_SECRET` in both the service and web server environments, `SNAPSHOT_KEY` in both environments, and `AUTH_SECRET` in the web server environment only. The private API fails closed without these values.
 4. Run `bash scripts/deploy-testnet.sh` from the repository root. It checks the RPC chain ID, verifier key and deployer balance before broadcasting.
 5. Copy the two deployed addresses printed by Foundry into `.env` as `TOKEN_ADDRESS` and `ESCROW_ADDRESS`, and also into `NEXT_PUBLIC_TOKEN_ADDRESS` and `NEXT_PUBLIC_ESCROW_ADDRESS`.
 6. From `services/`, run `npm run fund-wallets` to send 0.01 test HSK to each agent, verifier and arbiter wallet (it skips wallets already holding at least 0.005 HSK).
@@ -111,7 +111,7 @@ To leave a bounty open for human workers instead, set `DEMO_AGENT_MODE=0` when r
 
 If a poster disputes a task, the demo arbiter can run `bash scripts/resolve-dispute.sh BOUNTY_ID worker` to pay the worker, or replace `worker` with `poster` to refund the poster. This signs with the locally stored arbiter key.
 
-The deployed Next.js app uses its `/api` route. For completed paid tasks, it serves a bundled snapshot generated only after checking the submission and reason hashes against HSKChain, and only to an authenticated, authorized wallet. To refresh that snapshot after another payout, run `cd services && npm run snapshot` on the demo Mac and redeploy `web/`. New submissions still reach the local service through the proxy: set the web project's `SERVICE_UPSTREAM_URL` to its public HTTPS URL and `NEXT_PUBLIC_SERVICE_URL=/api` at build time. Set matching `SERVICE_PROXY_SECRET` values in both environments and an independent `AUTH_SECRET` in the web host. The proxy supplies the ngrok bypass header for the current temporary tunnel. The UI rewrites local submission URLs to `/api/submissions/:id` for viewing; the locally running verifier still fetches the original `localhost` URI from the chain. Keep the API and JSON store online for interactive demonstrations. This storage is not durable production infrastructure.
+The deployed Next.js app uses its `/api` route. For completed paid tasks, it serves an AES-256-GCM encrypted snapshot generated only after checking the submission and reason hashes against HSKChain, and only to an authenticated, authorized wallet. To refresh that snapshot after another payout, run `cd services && npm run snapshot` on the demo Mac and redeploy `web/`. New submissions still reach the local service through the proxy: set the web project's `SERVICE_UPSTREAM_URL` to its public HTTPS URL and `NEXT_PUBLIC_SERVICE_URL=/api` at build time. Set matching `SERVICE_PROXY_SECRET` and `SNAPSHOT_KEY` values in both environments and an independent `AUTH_SECRET` in the web host. The proxy supplies the ngrok bypass header for the current temporary tunnel. The UI rewrites local submission URLs to `/api/submissions/:id` for viewing; the locally running verifier still fetches the original `localhost` URI from the chain. Keep the API and JSON store online for interactive demonstrations. This storage is not durable production infrastructure.
 
 ## Three-minute presentation
 
@@ -127,7 +127,7 @@ The deployed Next.js app uses its `/api` route. For completed paid tasks, it ser
 
 - Add the public GitHub repository and [live demo](https://proofpay-hskchain.vercel.app) to the submission.
 - Add both verified HSKChain testnet contract addresses and explorer links to the submission.
-- Keep the local API and HTTPS tunnel running for new submissions and live AI work; completed tasks remain readable by the authorized wallet from the bundled snapshot.
+- Keep the local API and HTTPS tunnel running for new submissions and live AI work; paid tasks #0–#5 and #7 remain readable by authorized wallets from the encrypted snapshot.
 - Include `docs/ARCHITECTURE.md` as technical documentation.
 - Select the **AI x Ethereum & Agent Economy** EAG track and the HSK Chain track if the submission form permits both; ask the organizer what they mean by additional “HSK Chain technology integration.”
 - Submit before the local event's **14:00 Sydney time** cutoff. The [organizer's event page](https://luma.com/49iyovqf) lists the 3-minute demo and 2-minute Q&A format.
