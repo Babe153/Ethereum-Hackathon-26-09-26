@@ -9,6 +9,7 @@
     "wallets": "tsx src/setup-wallets.ts",
     "fund-wallets": "tsx src/fund-wallets.ts",
     "seed": "tsx src/seed-bounty.ts",
+    "snapshot": "tsx src/export-demo-snapshot.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

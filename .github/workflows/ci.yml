@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Solidity dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.4.0 foundry-rs/forge-std@v1.14.0 --no-git
+      - name: Test contracts
+        working-directory: contracts
+        run: forge test -q
+
+  services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: services/package-lock.json
+      - name: Install and typecheck services
+        working-directory: services
+        run: npm ci && npm run typecheck
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install and build web
+        working-directory: web
+        run: npm ci && npm run typecheck && npm run build
+      - name: Check ABI copies
+        run: |
+          cmp shared/BountyEscrow.abi.json web/abi/BountyEscrow.abi.json
+          cmp shared/MockUSDT.abi.json web/abi/MockUSDT.abi.json

@@ -1,6 +1,6 @@
 # Devfolio submission draft
 
-The public repository, live web page, contract source verification, and testnet payouts were checked on 26 September 2026. Task #0 is a scripted dry run; tasks #1–#3 used real DeepSeek API calls for worker and verifier. Show task #3 to judges: its factual output, specific 100/100 reason, hash match, and payout are visible on the live page. The API behind the page depends on a temporary tunnel from the demo Mac, so keep it running through judging.
+The public repository, live web page, contract source verification, and testnet payouts were checked on 26 September 2026. Task #0 is a scripted dry run; tasks #1–#3 used real DeepSeek API calls for worker and verifier. Show task #3 to judges: its factual output, specific 100/100 reason, hash match, and payout are visible on the live page. Completed-task evidence is bundled into the site after on-chain hash checks. Keep the demo Mac and temporary API tunnel running for new submissions during judging.
 
 ## Project name
 
@@ -54,4 +54,4 @@ The escrow and demo ERC-20 are Solidity contracts on HSKChain testnet (chain ID 
 
 ## Current validation status
 
-Foundry tests, TypeScript checks, Next.js build, browser rendering, and local Anvil and HSKChain testnet transaction flows passed. Task #0 used a labelled scripted verdict. Tasks #1–#3 used real DeepSeek calls and paid 100 demo mUSDT each after the challenge window. Task #3 scored 100/100; its output accurately described the contract flow. The public Vercel page displayed all four paid tasks, reasons matching on-chain hashes, and working submission links. Its API returned reasons and submissions through the temporary tunnel. OpenAI was not tested.
+Foundry tests, TypeScript checks, Next.js build, browser rendering, and local Anvil and HSKChain testnet transaction flows passed. Task #0 used a labelled scripted verdict. Tasks #1–#3 used real DeepSeek calls and paid 100 demo mUSDT each after the challenge window. Task #3 scored 100/100; its output accurately described the contract flow. The public Vercel page displayed all four paid tasks, reasons matching on-chain hashes, and working submission links. Completed-task evidence is bundled as a verified snapshot, so those records remain readable if the live API tunnel disconnects. OpenAI was not tested.

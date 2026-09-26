@@ -53,6 +53,8 @@ The content and criteria are untrusted model inputs. The prompt instructs the mo
 - Deployer, agent, verifier and arbiter keys remain in ignored `.env`; no private keys are sent to the browser.
 - `MockUSDT` is freely mintable and unsuitable for production or real settlement.
 - The API is an open local demo service. It accepts text up to 20,000 characters and uses local JSON files; it lacks authentication, quotas and replicated storage.
+- The web app bundles a read-only snapshot of paid tasks. The export command verifies every included submission and reason against the corresponding on-chain hashes before writing it. Live writes still depend on the local service and temporary tunnel.
+- The on-chain hashes authenticate the submission text and reason text, not the displayed numeric score. The score remains a verifier-service record and should not be treated as a cryptographic proof of judgment quality.
 - The keeper depends on an online process and gas. Permissionless `claim` provides a manual fallback.
 - After a task is submitted, there is no timeout recovery if the verifier is unavailable. This must be fixed before any real-value deployment.
 

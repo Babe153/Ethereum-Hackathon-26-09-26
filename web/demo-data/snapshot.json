@@ -1,0 +1,38 @@
+{
+  "/submissions/8d22d1dd-4f75-4a74-aeb4-426a8e2fc3d6": {
+    "content": "Demo agent response. I addressed the following acceptance criteria: Write one paragraph explaining why a pre-funded escrow protects a freelancer. Include the exact words escrow and challenge window.. This is a scripted demo output, not an AI model result."
+  },
+  "/reasons/0": {
+    "reason": "Scripted demo verdict; AI was not called.",
+    "score": 100,
+    "pass": true,
+    "hash": "0x30bcc494ec3390e10f61a0721d5b317dcae331305e803e3b656757aaf99f78db"
+  },
+  "/submissions/be34b7c5-f3f3-42a4-8841-6114bc7f4ceb": {
+    "content": "A pre-funded escrow protects a freelancer by having the client deposit the agreed payment into a neutral holding account before work begins, so the freelancer can see that the money exists and is reserved rather than relying on the client's promise to pay later. Once the work is delivered and approved—or once any agreed challenge window for the client to raise concerns has passed without a valid objection—the escrow releases the funds to the freelancer, reducing the risk of non-payment, last-minute renegotiation, or the client disappearing. Because the funds are already set aside, the freelancer has stronger leverage and a clearer path to payment if a dispute arises, since the money is held by a third party rather than controlled solely by the client."
+  },
+  "/reasons/1": {
+    "reason": "One paragraph that explains why a pre-funded escrow protects a freelancer and includes the exact terms 'escrow' and 'challenge window'.",
+    "score": 95,
+    "pass": true,
+    "hash": "0x3993eebfa691a7a5c1c7ba3654082debd5f0d46adccc3fb13e057b6e41cbecc8"
+  },
+  "/submissions/6ea811f3-ed03-4c4f-bbe9-c411c4c7b086": {
+    "content": "An escrow with a dispute period reduces non-payment risk for a freelancer by having the client commit funds before work begins, effectively acting as an **upfront deposit** held by a neutral third party rather than paid directly to the freelancer. Once the freelancer delivers the work, the client can release payment, but if the client does not respond or disputes the delivery, the freelancer can raise the matter during the **challenge window**—a defined period in which claims are reviewed before funds are finalized. Because the money is already secured and the freelancer has a formal opportunity to contest non-release, the risk of completing work and receiving nothing is substantially lowered."
+  },
+  "/reasons/2": {
+    "reason": "The deliverable is a single short paragraph that explains how escrow with a dispute period lowers a freelancer's non-payment risk and includes the required exact phrases \"upfront deposit\" and \"challenge window\" in bold. It clearly covers client pre-funding, neutral holding, and the freelancer's dispute opportunity during the challenge window.",
+    "score": 95,
+    "pass": true,
+    "hash": "0xc4981f27e5aaacd56fd19290a7a79c0302fa9367132521e516abb19bf259d3ba"
+  },
+  "/submissions/bb315281-6075-45b4-a7f7-acac3fc008bc": {
+    "content": "ProofPay is an escrow-style payment flow in which the poster locks mUSDT before work begins; the worker then submits the completed work, and the AI verifier can approve it. Only the poster may dispute during the 60-second challenge window, and after that window ends, anyone may call the permissionless claim function to pay the worker."
+  },
+  "/reasons/3": {
+    "reason": "The deliverable is a single paragraph covering all required facts: poster locks mUSDT before work, worker submits, AI verifier can approve, only the poster may dispute during the 60-second challenge window, and after that anyone may call the permissionless claim function. Both exact phrases 'challenge window' and 'permissionless claim' appear, and no outside or unsupported facts are introduced.",
+    "score": 100,
+    "pass": true,
+    "hash": "0x0df065ba65f054e36d28c2c0b3a96e9fff002cd5f1ebc0084ca62f02c445447f"
+  }
+}

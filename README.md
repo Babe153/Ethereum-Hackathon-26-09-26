@@ -6,7 +6,7 @@ ProofPay locks a demo reward on HSKChain, lets a human or an AI agent deliver wo
 
 GitHub repository: [Babe153/Ethereum-Hackathon-26-09-26](https://github.com/Babe153/Ethereum-Hackathon-26-09-26).
 
-Live testnet demo: [proofpay-hskchain.vercel.app](https://proofpay-hskchain.vercel.app). Task #0 is a clearly labelled scripted rehearsal; task #1 used real DeepSeek API calls for worker output and verification, then paid the worker on chain. The submission API runs on the demo Mac and reaches Vercel through a temporary HTTPS tunnel; keep the Mac, API process and tunnel online during judging.
+Live testnet demo: [proofpay-hskchain.vercel.app](https://proofpay-hskchain.vercel.app). Task #0 is a clearly labelled scripted rehearsal; tasks #1–#3 used real DeepSeek API calls and paid the workers on chain. The four completed tasks have a read-only, on-chain-hash-verified evidence snapshot bundled into the web app. Keep the demo Mac, API process and HTTPS tunnel online for new submissions and live AI processing during judging.
 
 ## What works
 
@@ -26,7 +26,9 @@ Live testnet demo: [proofpay-hskchain.vercel.app](https://proofpay-hskchain.verc
 | `contracts/` | Foundry, Solidity 0.8.24, OpenZeppelin ERC-20 and escrow |
 | `services/` | Node/TypeScript submission API, agent worker, AI verifier and keeper |
 | `web/` | Next.js, RainbowKit, wagmi and viem interface |
+| `web/demo-data/` | Verified read-only evidence for completed testnet tasks |
 | `shared/` | ABI JSON generated from the compiled contracts |
+| `CONTRIBUTING.md` | Team setup and pull request workflow |
 | `docs/ARCHITECTURE.md` | Architecture, trust model and roadmap |
 | `docs/SUBMISSION.md` | Copy-ready Devfolio draft and demo Q&A |
 
@@ -87,7 +89,7 @@ For a repeatable terminal rehearsal using the deployer wallet, run `cd services 
 
 If a poster disputes a task, the demo arbiter can run `bash scripts/resolve-dispute.sh BOUNTY_ID worker` to pay the worker, or replace `worker` with `poster` to refund the poster. This signs with the locally stored arbiter key.
 
-The deployed Next.js app uses its `/api` route to reach the submission service. Set the web project's `SERVICE_UPSTREAM_URL` to a public HTTPS URL for the running service, and set `NEXT_PUBLIC_SERVICE_URL=/api` at build time. The proxy supplies the ngrok bypass header for the current temporary tunnel. The UI rewrites local submission URLs to `/api/submissions/:id` for viewing; the locally running verifier still fetches the original `localhost` URI from the chain. The API and JSON store must stay online during the demo. This storage is not durable production infrastructure.
+The deployed Next.js app uses its `/api` route. For completed paid tasks, it serves a bundled snapshot generated only after checking the submission and reason hashes against HSKChain. To refresh that snapshot after another payout, run `cd services && npm run snapshot` on the demo Mac and redeploy `web/`. New submissions still reach the local service through the proxy: set the web project's `SERVICE_UPSTREAM_URL` to its public HTTPS URL and `NEXT_PUBLIC_SERVICE_URL=/api` at build time. The proxy supplies the ngrok bypass header for the current temporary tunnel. The UI rewrites local submission URLs to `/api/submissions/:id` for viewing; the locally running verifier still fetches the original `localhost` URI from the chain. Keep the API and JSON store online for interactive demonstrations. This storage is not durable production infrastructure.
 
 ## Three-minute presentation
 
@@ -103,11 +105,11 @@ The deployed Next.js app uses its `/api` route to reach the submission service. 
 
 - Add the public GitHub repository and [live demo](https://proofpay-hskchain.vercel.app) to the submission.
 - Add both verified HSKChain testnet contract addresses and explorer links to the submission.
-- Keep the local API and HTTPS tunnel running so remote reviewers can read submissions and verdicts.
+- Keep the local API and HTTPS tunnel running for new submissions and live AI work; completed tasks remain readable from the bundled snapshot.
 - Include `docs/ARCHITECTURE.md` as technical documentation.
 - Select the **AI x Ethereum & Agent Economy** EAG track and the HSK Chain track if the submission form permits both; ask the organizer what they mean by additional “HSK Chain technology integration.”
 - Submit before the local event's **14:00 Sydney time** cutoff. The [organizer's event page](https://luma.com/49iyovqf) lists the 3-minute demo and 2-minute Q&A format.
 
 ## Prototype limitations
 
-The verifier and arbiter are trusted keys. The model can make mistakes, and a reason hash proves only that a stored explanation matches the committed bytes, not that the verdict is correct. A submitted task can become stuck if the verifier never responds; this prototype has no timeout arbitration path for `Submitted`. The API has local file storage and no abuse protection. Before handling real funds, add independent security review, a robust dispute process, durable content storage, and a recovery path for unavailable verifiers.
+The verifier and arbiter are trusted keys. The model can make mistakes, and a reason hash proves only that a stored explanation matches the committed bytes, not that the verdict or numeric score is correct. A submitted task can become stuck if the verifier never responds; this prototype has no timeout arbitration path for `Submitted`. The API has local file storage and no abuse protection. The bundled snapshot keeps completed examples readable, but does not store new work when the local service is offline. Before handling real funds, add independent security review, a robust dispute process, durable content storage, and a recovery path for unavailable verifiers.
