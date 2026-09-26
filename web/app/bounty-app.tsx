@@ -188,10 +188,24 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
     void refresh();
     const timer = setInterval(() => {
       void refresh();
-      setNow(Math.floor(Date.now() / 1000));
     }, 20000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // Display time must tick independently of the slower RPC polling loop.
+  // Recompute from wall time so background throttling cannot accumulate drift.
+  useEffect(() => {
+    const tick = () => setNow(Math.floor(Date.now() / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, []);
   const current = useMemo(
     () => entries.find((e) => e.id === selected),
     [entries, selected],
@@ -760,7 +774,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
                   <small>{t.challengeWindow}</small>
                   <strong>
                     {secondsLeft > 0
-                      ? `00:${String(secondsLeft).padStart(2, "0")}`
+                      ? `${String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:${String(secondsLeft % 60).padStart(2, "0")}`
                       : t.readyToClaim}
                   </strong>
                   <p>
