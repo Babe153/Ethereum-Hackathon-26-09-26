@@ -32,6 +32,13 @@ const chain = createPublicClient({ transport: fallback([
   http(process.env.NEXT_PUBLIC_RPC_URL || "https://testnet.hsk.xyz"),
 ]) });
 type Bounty = { poster: string; worker: string; submissionURI: string; submissionHash: string; status: number };
+let arbiterAddress: string | null = null;
+
+async function isDisputeArbiter(session: string, bounty: Bounty): Promise<boolean> {
+  if (bounty.status !== 4 || !escrowAddress) return false;
+  arbiterAddress ||= await chain.readContract({ address: escrowAddress, abi: escrowJson as Abi, functionName: "arbiter" }) as string;
+  return arbiterAddress.toLowerCase() === session;
+}
 
 async function bountyById(id: string): Promise<Bounty> {
   if (!/^\d{1,20}$/.test(id) || !escrowAddress) throw new Error("Invalid bounty ID");
@@ -70,12 +77,15 @@ async function forward(request: NextRequest, context: Context) {
         if (!bountyId) return Response.json({ error: "Bounty ID required" }, { status: 400 });
         const bounty = await bountyById(bountyId);
         const submittedPath = new URL(bounty.submissionURI).pathname;
-        if (submittedPath !== pathname || ![bounty.poster.toLowerCase(), bounty.worker.toLowerCase()].includes(session))
-          return Response.json({ error: "Only task participants can view the deliverable" }, { status: 403 });
+        if (submittedPath !== pathname || (
+          ![bounty.poster.toLowerCase(), bounty.worker.toLowerCase()].includes(session) &&
+          !await isDisputeArbiter(session, bounty)
+        ))
+          return Response.json({ error: "Only task participants or the dispute arbiter can view the deliverable" }, { status: 403 });
       } else if (pathname.startsWith("/reasons/") && request.method === "GET") {
         const bounty = await bountyById(path[1]);
-        if (bounty.poster.toLowerCase() !== session)
-          return Response.json({ error: "Only the poster can view the report" }, { status: 403 });
+        if (bounty.poster.toLowerCase() !== session && !await isDisputeArbiter(session, bounty))
+          return Response.json({ error: "Only the poster or dispute arbiter can view the report" }, { status: 403 });
       } else if (/^\/reviews\/\d+$/.test(pathname) && request.method === "GET") {
         const bounty = await bountyById(path[1]);
         if (bounty.poster.toLowerCase() !== session)

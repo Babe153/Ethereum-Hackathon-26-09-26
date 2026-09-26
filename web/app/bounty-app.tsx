@@ -132,6 +132,7 @@ export default function BountyApp({
   const [manualReason, setManualReason] = useState("");
   const [authAddress, setAuthAddress] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+  const [arbiterAddress, setArbiterAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<bigint>(0n);
   const [balanceAddress, setBalanceAddress] = useState<string | null>(null);
   const [chainError, setChainError] = useState(false);
@@ -163,6 +164,15 @@ export default function BountyApp({
   useEffect(() => {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
   }, [locale]);
+
+  useEffect(() => {
+    if (!configured) return;
+    let active = true;
+    void publicClient.readContract({ address: escrowAddress!, abi: escrowAbi, functionName: "arbiter" })
+      .then(value => { if (active && typeof value === "string") setArbiterAddress(value.toLowerCase()); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [configured]);
 
   const refresh = useCallback(async () => {
     if (!configured) return;
@@ -281,6 +291,8 @@ export default function BountyApp({
     bounty &&
     getAddress(address) === getAddress(bounty.worker)
   );
+  const isDisputeArbiter = !!(address && arbiterAddress && bounty?.status === 4 && address.toLowerCase() === arbiterAddress);
+  const canReadReview = isPoster || isDisputeArbiter;
   const signedIn = !!address && authAddress === address.toLowerCase();
 
   useEffect(() => {
@@ -361,25 +373,31 @@ export default function BountyApp({
   useEffect(() => {
     setReason(null);
     setReasonVerified(false);
-    if (!bounty || bounty.reasonHash === zeroHash || !isPoster || !signedIn)
+    if (!bounty || bounty.reasonHash === zeroHash || !canReadReview || !signedIn)
       return;
     const hash = bounty.reasonHash;
     let active = true;
-    fetch(`${serviceUrl}/reasons/${current?.id}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: Reason) => {
-        if (active) {
-          setReason(data);
-          setReasonVerified(
-            keccak256(stringToHex(data.reason)) === hash && data.hash === hash,
-          );
-        }
-      })
-      .catch(() => {});
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    const load = () => {
+      void fetch(`${serviceUrl}/reasons/${current?.id}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data: Reason) => {
+          if (active) {
+            setReason(data);
+            setReasonVerified(keccak256(stringToHex(data.reason)) === hash && data.hash === hash);
+          }
+        })
+        .catch(() => {
+          if (active && ++attempts < 5) retryTimer = setTimeout(load, 2000);
+        });
+    };
+    load();
     return () => {
       active = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [current?.id, bounty?.reasonHash, isPoster, signedIn]);
+  }, [current?.id, bounty?.reasonHash, canReadReview, signedIn]);
 
 useEffect(() => {
     setPendingReview(null);
@@ -599,6 +617,8 @@ useEffect(() => {
       return bounty.poster.toLowerCase() === address.toLowerCase();
     if (filter === "working")
       return bounty.worker.toLowerCase() === address.toLowerCase();
+    if (filter === "arbitration")
+      return address.toLowerCase() === arbiterAddress && bounty.status === 4;
     return false;
   });
   const locked = entries
@@ -987,6 +1007,9 @@ useEffect(() => {
                     ["closed", zh ? "已结束" : "Closed"],
                     ["posted", zh ? "我发布的" : "Posted by me"],
                     ["working", zh ? "我接的" : "Accepted by me"],
+                    ...(address?.toLowerCase() === arbiterAddress
+                      ? [["arbitration", zh ? "待我仲裁" : "Needs my arbitration"]]
+                      : []),
                   ].map(([key, label]) => (
                     <button
                       key={key}
@@ -1178,7 +1201,7 @@ useEffect(() => {
                   </strong>
                 </span>
               </div>
-              {bounty.submissionURI && (isPoster || isWorker) && (
+              {bounty.submissionURI && (isPoster || isWorker || isDisputeArbiter) && (
                 <div className="evidence">
                   <h4>{t.submission}</h4>
                   {submissionHref(bounty.submissionURI, current.id) ? (
@@ -1211,7 +1234,7 @@ useEffect(() => {
                   </small>
                 </div>
               )}
-{bounty.submissionURI && !isPoster && !isWorker && <p className="private-note">{zh ? "平台内交付内容仅发布者和接单者可见。" : "Platform-hosted deliverables are visible only to the poster and worker."}</p>}
+              {bounty.submissionURI && !isPoster && !isWorker && !isDisputeArbiter && <p className="private-note">{zh ? "交付内容仅发布者和接单者可见；争议期间仲裁人也可查看。" : "The poster and worker can view the deliverable; the arbiter can also view it during a dispute."}</p>}
               {pendingReview && isPoster && signedIn && bounty.status === 2 && (
                 <section className="verdict" aria-label={zh ? "DeepSeek 待确认建议" : "Pending DeepSeek recommendation"}>
                   <div className="report-heading"><span>{zh ? "DeepSeek 建议 · 等待人工确认" : "DeepSeek recommendation · awaiting human review"}</span><span className="status status-4">{zh ? "建议未通过" : "Suggests revision"}</span></div>
@@ -1220,7 +1243,7 @@ useEffect(() => {
                   <small>{zh ? "这是 AI 建议，尚未写入链上。发布者可根据交付内容人工认可；5 分钟内未操作，系统才按 AI 建议处理。" : "This is an AI recommendation, not yet committed on chain. The poster can approve the work within five minutes; otherwise the AI recommendation takes effect."}</small>
                 </section>
               )}
-              {reason && isPoster && signedIn && (
+              {reason && canReadReview && signedIn && (
                 <section className="verdict" aria-label={zh ? "DeepSeek 验收报告" : "DeepSeek review report"}>
                   <div className="report-heading"><span>{reason.source === "poster" ? (zh ? "发布者人工认可 · DeepSeek 原建议" : "Poster approval · original DeepSeek review") : /scripted demo/i.test(reason.reason) ? (zh ? "脚本演示结果" : "Scripted demo result") : (zh ? "DeepSeek 验收报告" : "DeepSeek review report")}</span><span className={`status status-${reason.pass ? 3 : 4}`}>{reason.source === "poster" ? (zh ? "人工通过" : "Approved by poster") : reason.pass ? (zh ? "通过" : "Passed") : (zh ? "未通过" : "Needs revision")}</span></div>
                   <div className="report-score"><strong>{reason.score}%</strong><span>{reason.source === "poster" ? (zh ? "DeepSeek 原评估完成度" : "Original DeepSeek score") : (zh ? "任务完成度" : "Task completion")}</span></div>
@@ -1237,17 +1260,17 @@ useEffect(() => {
                   </p>
                 </section>
               )}
-              {bounty.reasonHash !== zeroHash && isPoster && !signedIn && (
+              {bounty.reasonHash !== zeroHash && canReadReview && !signedIn && (
                 <div className="report-gate">
                   <strong>
-                    {zh
-                      ? "验收报告仅向发布者开放"
-                      : "Review report for the poster"}
+                    {isDisputeArbiter
+                      ? (zh ? "仲裁人签名查看报告" : "Arbiter sign-in required")
+                      : (zh ? "验收报告仅向发布者开放" : "Review report for the poster")}
                   </strong>
                   <p>
                     {zh
-                      ? "请用发布任务的钱包签名，查看完成度和验收依据。"
-                      : "Sign with the posting wallet to see the score and review findings."}
+                      ? "请用当前钱包签名，查看完成度和验收依据。"
+                      : "Sign with this wallet to see the score and review findings."}
                   </p>
                   <button
                     className="secondary"
@@ -1264,11 +1287,11 @@ useEffect(() => {
                   </button>
                 </div>
               )}
-              {bounty.reasonHash !== zeroHash && !isPoster && (
+              {bounty.reasonHash !== zeroHash && !canReadReview && (
                 <p className="private-note">
                   {zh
-                    ? "完整验收报告仅发布者可见。"
-                    : "The full review report is visible only to the poster."}
+                    ? "完整验收报告仅发布者可见；争议期间仲裁人也可查看。"
+                    : "The full report is visible to the poster and, during a dispute, the arbiter."}
                 </p>
               )}
             </div>
@@ -1463,7 +1486,15 @@ useEffect(() => {
                   </button>
                 )}
               {bounty.status === 4 && (
-                <p className="action-note">{t.disputedNote}</p>
+                <div className="action-note">
+                  <p>{t.disputedNote}</p>
+                  {isDisputeArbiter && <div className="arbiter-actions">
+                    <strong>{zh ? "人工仲裁 · 由你决定赏金归属" : "Human arbitration · decide where the reward goes"}</strong>
+                    <p>{zh ? "先查看交付内容和验收报告，再选择链上裁决。该交易会立即结算。" : "Review the deliverable and report before deciding. This transaction settles the reward immediately."}</p>
+                    <button className="primary" disabled={!wallet || !!busy} onClick={() => void action(zh ? "裁定放款" : "Award worker", "resolve", [current.id, true])}>{zh ? "裁定放款给接单者" : "Award payment to worker"}</button>
+                    <button className="secondary" disabled={!wallet || !!busy} onClick={() => void action(zh ? "裁定退款" : "Refund poster", "resolve", [current.id, false])}>{zh ? "裁定退回发布者" : "Refund the poster"}</button>
+                  </div>}
+                </div>
               )}
               {(bounty.status === 5 || bounty.status === 6) && (
                 <p className="action-note">{t.closedNote}</p>
