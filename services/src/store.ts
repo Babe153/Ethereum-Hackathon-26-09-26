@@ -36,17 +36,18 @@ export async function saveReason(
   reason: string,
   score: number,
   pass: boolean,
+  source: "ai" | "poster" = "ai",
 ) {
   await mkdir(reasonDir, { recursive: true });
   await writeFile(
     resolve(reasonDir, `${bountyId}.json`),
-    JSON.stringify({ reason, score, pass, hash: contentHash(reason) }),
+    JSON.stringify({ reason, score, pass, source, hash: contentHash(reason) }),
   );
 }
 
 export async function readReason(
   id: string,
-): Promise<{ reason: string; score: number; pass: boolean; hash: string }> {
+): Promise<{ reason: string; score: number; pass: boolean; source?: "ai" | "poster"; hash: string }> {
   if (!/^\d+$/.test(id)) throw new Error("Invalid bounty ID");
   return JSON.parse(await readFile(resolve(reasonDir, `${id}.json`), "utf8"));
 }

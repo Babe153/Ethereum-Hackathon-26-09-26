@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { config as loadEnv } from "dotenv";
 import { resolve } from "node:path";
 import { readReason, readSubmission, saveSubmission } from "./store.js";
+import { approvePendingReview, humanReviewWindowMs, readPendingReview } from "./reviews.js";
 import { readHealth } from "./health.js";
 
 loadEnv({ path: resolve(process.cwd(), "../.env") });
@@ -54,6 +55,22 @@ createServer(async (req, res) => {
       /^\/submissions\/[0-9a-f-]+$/.test(url.pathname)
     ) {
       result = json(await readSubmission(url.pathname.split("/")[2]));
+    } else if (req.method === "GET" && /^\/reviews\/\d+$/.test(url.pathname)) {
+      const review = await readPendingReview(url.pathname.split("/")[2]);
+      result = review
+        ? json({ aiPass: false, score: review.score, reason: review.reason, submissionHash: review.submissionHash, submissionURI: review.submissionURI, expiresAt: review.createdAt + humanReviewWindowMs, humanApprovalPending: !!review.humanApproval })
+        : json({ error: "No pending AI review" }, 404);
+    } else if (req.method === "POST" && /^\/reviews\/\d+\/approve$/.test(url.pathname)) {
+      let raw = "";
+      for await (const chunk of req) {
+        raw += chunk;
+        if (raw.length > 4_000) throw new Error("Request too large");
+      }
+      const body: unknown = JSON.parse(raw);
+      const { submissionHash, submissionURI, reason } = body && typeof body === "object" ? body as { submissionHash?: unknown; submissionURI?: unknown; reason?: unknown } : {};
+      if (typeof submissionHash !== "string" || typeof submissionURI !== "string" || typeof reason !== "string") throw new Error("Invalid review decision");
+      await approvePendingReview(url.pathname.split("/")[2], submissionHash, submissionURI, reason);
+      result = json({ accepted: true }, 202);
     } else if (req.method === "GET" && /^\/reasons\/\d+$/.test(url.pathname)) {
       result = json(await readReason(url.pathname.split("/")[2]));
     } else result = json({ error: "Not found" }, 404);

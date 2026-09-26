@@ -942,6 +942,12 @@ button:disabled { cursor: not-allowed; }
 .report-gate strong { display: block; font-size: 14px; }
 .report-gate p, .private-note { color: #6b7d6e; font-size: 12px; line-height: 1.7; }
 .report-gate .secondary { margin-top: 10px; }
+.manual-review { margin: 18px 0; padding: 18px; border: 1px solid #bad5bf; background: #fff; border-radius: 12px; display: grid; gap: 10px; }
+.manual-review strong { font-size: 14px; color: #244c39; }
+.manual-review p { margin: 0; font-size: 12px; line-height: 1.7; color: #5b705f; }
+.manual-review textarea { width: 100%; min-height: 90px; padding: 11px; border: 1px solid #cad8ca; border-radius: 8px; resize: vertical; font: inherit; }
+.manual-review .primary { width: 100%; }
+.manual-review small { color: #6d7e71; line-height: 1.5; }
 @media (max-width: 900px) { .main-nav { margin-right: 10px; } .panels-post { grid-template-columns: 1fr; } }
 @media (max-width: 650px) {
   .topbar { display: grid; grid-template-columns: 1fr auto; row-gap: 12px; }
