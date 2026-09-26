@@ -60,6 +60,7 @@ type Bounty = {
 type Entry = { id: bigint; bounty: Bounty };
 type Reason = { reason: string; score: number; pass: boolean; hash: string; source?: "ai" | "poster" };
 type PendingReview = { aiPass: false; score: number; reason: string; submissionHash: string; submissionURI: string; expiresAt: number; humanApprovalPending: boolean };
+type PublishReview = { typedAmount: string; value: bigint; criteria: string; durationMinutes: number; poster: string };
 
 function short(address?: string) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "—";
@@ -156,6 +157,8 @@ export default function BountyApp({
 
   const selected = taskId && /^\d{1,20}$/.test(taskId) ? BigInt(taskId) : null;
   const [amount, setAmount] = useState("100");
+  const amountInputRef = useRef<HTMLInputElement>(null);
+  const [publishReview, setPublishReview] = useState<PublishReview | null>(null);
   const [criteria, setCriteria] = useState<string>("");
   const [autoAgent, setAutoAgent] = useState(false);
   const [minutes, setMinutes] = useState("30");
@@ -502,7 +505,17 @@ useEffect(() => {
 
   async function create() {
     if (!wallet || !address || !configured) return;
-    const value = rewardAmount;
+    // Read the visible field at click time. Autofill or extensions can update
+    // an input without a React change event, leaving `amount` behind the UI.
+    const typedAmount = (amountInputRef.current?.value ?? amount).trim();
+    let value: bigint;
+    try {
+      if (!/^\d+(?:\.\d{1,6})?$/.test(typedAmount)) throw new Error("Invalid decimal amount");
+      value = parseUnits(typedAmount, 6);
+    } catch {
+      setNotice(locale === "zh" ? "赏金最多保留 6 位小数，请重新输入。" : "Enter a reward with no more than 6 decimal places.");
+      return;
+    }
     const onchainCriteria = `${autoAgent ? agentMode.prefix : ""}${criteria.trim()}`;
     const durationMinutes = Number(minutes);
     if (new TextEncoder().encode(onchainCriteria).length > 2048) {
@@ -528,6 +541,18 @@ useEffect(() => {
     );
     if (!balanceLoaded || value > balance) {
       setNotice(t.insufficientBalance);
+      return;
+    }
+    const review = { typedAmount, value, criteria: onchainCriteria, durationMinutes, poster: address.toLowerCase() };
+    if (!publishReview ||
+      publishReview.typedAmount !== review.typedAmount ||
+      publishReview.value !== review.value ||
+      publishReview.criteria !== review.criteria ||
+      publishReview.durationMinutes !== review.durationMinutes ||
+      publishReview.poster !== review.poster) {
+      if (typedAmount !== amount) setAmount(typedAmount);
+      setPublishReview(review);
+      setNotice("");
       return;
     }
     const created = await transact(t.createAction, async () => {
@@ -928,11 +953,13 @@ useEffect(() => {
                   <label>
                     {t.reward} <span>{t.rewardHint}</span>
                     <input
-                      type="number"
-                      min="0.000001"
-                      step="0.01"
+                      ref={amountInputRef}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      disabled={!!busy}
+                      onChange={(e) => { setAmount(e.target.value); setPublishReview(null); }}
                     />
                   </label>
                   <label>
@@ -942,14 +969,16 @@ useEffect(() => {
                       maxLength={2048}
                       placeholder={t.defaultCriteria}
                       value={criteria}
-                      onChange={(e) => setCriteria(e.target.value)}
+                      disabled={!!busy}
+                      onChange={(e) => { setCriteria(e.target.value); setPublishReview(null); }}
                     />
                   </label>
                   <label className="agent-choice">
                     <input
                       type="checkbox"
                       checked={autoAgent}
-                      onChange={(event) => setAutoAgent(event.target.checked)}
+                      disabled={!!busy}
+                      onChange={(event) => { setAutoAgent(event.target.checked); setPublishReview(null); }}
                     />
                     <span>
                       {zh
@@ -973,9 +1002,18 @@ useEffect(() => {
                       min="1"
                       max="43200"
                       value={minutes}
-                      onChange={(e) => setMinutes(e.target.value)}
+                      disabled={!!busy}
+                      onChange={(e) => { setMinutes(e.target.value); setPublishReview(null); }}
                     />
                   </label>
+                  {publishReview && (
+                    <div className="publish-confirmation" role="status">
+                      <strong>{zh ? "请核对最终上链赏金" : "Review the exact on-chain reward"}</strong>
+                      <p>{zh ? "本次将锁定" : "This task will lock"} <b>{formatUnits(publishReview.value, 6)} mUSDT</b></p>
+                      <small>{zh ? "发布后无法修改这笔赏金。如金额不对，请返回修改。" : "The reward cannot be edited after posting. Change it now if it is wrong."}</small>
+                      <button type="button" className="secondary" disabled={!!busy} onClick={() => { setPublishReview(null); amountInputRef.current?.focus(); }}>{zh ? "返回修改金额" : "Edit reward"}</button>
+                    </div>
+                  )}
                   <button
                     className="primary"
                     disabled={
@@ -983,15 +1021,15 @@ useEffect(() => {
                       !wallet ||
                       !!busy ||
                       chainError ||
-                      !balanceLoaded ||
-                      rewardAmount <= 0n ||
-                      rewardAmount > balance
+                      !balanceLoaded
                     }
                     onClick={() => void create()}
                   >
                     {busy === t.createAction || busy === t.approveAction
                       ? t.confirmWallet
-                      : t.lockFunds}
+                      : publishReview
+                        ? (zh ? `确认锁定 ${formatUnits(publishReview.value, 6)} mUSDT 并发布` : `Lock ${formatUnits(publishReview.value, 6)} mUSDT and post`)
+                        : (zh ? "先核对赏金金额" : "Review reward amount")}
                     <span>↗</span>
                   </button>
                   <p className="fineprint">{t.createNote}</p>

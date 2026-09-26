@@ -1676,7 +1676,13 @@ footer a {
   .wallet-gate p { width: 100%; }
 }
 
-/* Wallet-scoped profile */
+/* Post confirmation and wallet-scoped profile */
+.publish-confirmation { display: grid; gap: 8px; margin: 16px 0; padding: 18px; border: 1px solid #a8c3a4; border-radius: 12px; background: #f0f7eb; color: #244c39; }
+.publish-confirmation strong { font-size: 14px; }
+.publish-confirmation p { margin: 0; font-size: 13px; }
+.publish-confirmation b { font-size: 20px; }
+.publish-confirmation small { color: #617365; line-height: 1.6; }
+.publish-confirmation .secondary { justify-self: start; margin-top: 4px; }
 .profile-wallet { display: flex; align-items: center; gap: 20px; padding: 26px; margin-bottom: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .profile-avatar { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; border-radius: 18px; background: var(--pine); color: var(--lime); font-size: 22px; font-weight: 650; }
 .profile-identity { min-width: 0; flex: 1; }
