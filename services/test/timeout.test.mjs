@@ -31,6 +31,25 @@ test('timeout permissions, boundary, resubmission, arbitration and payout remain
  id=await task();await advance(600);await write(poster,'escalateVerificationTimeout',[id]);await write(arbiter,'resolve',[id,false]);
  id=await task();const first=await read('submittedAt',[id]);await advance(300);await write(verifier,'verify',[id,false,hash]);await write(worker,'submit',[id,'http://localhost/new',hash]);assert.ok(await read('submittedAt',[id])>first);await advance(300);await assert.rejects(write(worker,'escalateVerificationTimeout',[id]));
  await write(verifier,'verify',[id,true,hash]);await advance(60);await write(stranger,'claim',[id]);await assert.rejects(write(poster,'escalateVerificationTimeout',[id]));
+ // Poster-only immediate settlement must bypass the window without bypassing review.
+ id=await task();
+ await assert.rejects(write(poster,'confirmAndPay',[id]));
+ await write(verifier,'verify',[id,true,hash]);
+ await assert.rejects(write(worker,'confirmAndPay',[id]));
+ await assert.rejects(write(stranger,'confirmAndPay',[id]));
+ await assert.rejects(write(verifier,'confirmAndPay',[id]));
+ await assert.rejects(write(stranger,'claim',[id]));
+ const balance=()=>client.readContract({address:token,abi:a.MockUSDT.abi,functionName:'balanceOf',args:[worker.account.address]});
+ const before=await balance();
+ await write(poster,'confirmAndPay',[id]);
+ assert.equal(await balance(),before+100_000000n);
+ assert.equal((await read('getBounty',[id])).status,5);
+ await assert.rejects(write(poster,'confirmAndPay',[id]));
+ await assert.rejects(write(stranger,'claim',[id]));
+ await assert.rejects(write(poster,'dispute',[id]));
+ id=await task();await write(verifier,'verify',[id,true,hash]);await write(poster,'dispute',[id]);
+ await assert.rejects(write(poster,'confirmAndPay',[id]));
+ await write(arbiter,'resolve',[id,false]);
  assert.equal(await client.readContract({address:token,abi:a.MockUSDT.abi,functionName:'balanceOf',args:[address]}),0n);
  }finally{await rpc.disconnect();}
 });

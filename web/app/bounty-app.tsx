@@ -317,6 +317,15 @@ export default function BountyApp({
       active = false;
     };
   }, [current?.id, bounty?.status]);
+  const [supportsConfirmation, setSupportsConfirmation] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!escrowAddress) return;
+    void publicClient.readContract({ address: escrowAddress, abi: escrowAbi, functionName: "supportsPosterConfirmation" })
+      .then(value => { if (active) setSupportsConfirmation(value === true); })
+      .catch(() => { if (active) setSupportsConfirmation(false); });
+    return () => { active = false; };
+  }, []);
   const [challengeWindow, setChallengeWindow] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
@@ -661,8 +670,11 @@ useEffect(() => {
     });
   }
 
-  async function releasePayment() {
+  async function releasePayment(confirmNow = false) {
     if (!wallet || !address || !current || !escrowAddress || !isPoster) return;
+    if (confirmNow && (!supportsConfirmation || !window.confirm(locale === "zh"
+      ? "确认交付符合要求并立即放款？此操作会结束异议期，将全部托管赏金支付给接单者，无法撤销。"
+      : "Accept this delivery and pay now? This ends the challenge window and sends the full escrowed reward to the worker. It cannot be undone."))) return;
     const id = current.id;
     await transact(t.releaseAction, async () => {
       const [latest, window, block] = await Promise.all([
@@ -676,11 +688,11 @@ useEffect(() => {
           ? (latest.status === 5 ? "赏金已结算，无需重复付款。" : "任务状态已改变，目前不能放款。")
           : (latest.status === 5 ? "Reward already paid. No further payment is needed." : "The task status changed; payment is unavailable."));
       }
-      if (block.timestamp < latest.approvedAt + window) {
+      if (!confirmNow && block.timestamp < latest.approvedAt + window) {
         throw new Error(locale === "zh" ? "链上异议期尚未结束，请稍后重试。" : "The on-chain challenge window is still open. Try again later.");
       }
       const { request } = await publicClient.simulateContract({
-        address: escrowAddress, abi: escrowAbi, functionName: "claim", args: [id], account: address,
+        address: escrowAddress, abi: escrowAbi, functionName: confirmNow ? "confirmAndPay" : "claim", args: [id], account: address,
       });
       return wallet.writeContract({ ...request, chain: hsk, account: address });
     });
@@ -1601,6 +1613,13 @@ useEffect(() => {
               )}
               {bounty.status === 3 && (
                 <>
+                  {isPoster && supportsConfirmation && <>
+                    <button className="primary" disabled={!wallet || !!busy || chainId !== hsk.id} onClick={() => void releasePayment(true)}>
+                      {zh ? "确认交付并立即放款" : "Confirm delivery & pay now"}
+                    </button>
+                    <p className="action-note">{zh ? "确认后立即向接单者支付全部赏金，并结束异议期。" : "Confirmation pays the full reward to the worker immediately and ends the challenge window."}</p>
+                  </>}
+                  {isPoster && !supportsConfirmation && <p className="action-note">{zh ? "当前合约未确认支持立即放款，请等待异议期结束。新版合约部署后可启用。" : "Immediate payment support is unavailable on this contract. Wait for the challenge window or use an upgraded deployment."}</p>}
                   {isPoster && <button
                     className="primary"
                     disabled={!wallet || !!busy || chainId !== hsk.id || challengeWindow === null || secondsLeft > 0}

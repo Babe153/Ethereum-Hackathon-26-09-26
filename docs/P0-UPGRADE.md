@@ -31,3 +31,22 @@ The local EVM tests require no keys or external RPC. Foundry tests also cover ti
 6. Rehearse: stop verifier, submit as a human, observe its heartbeat become offline, wait 10 minutes, escalate as poster/worker, resolve as arbiter. Restart verifier and check it cannot override the resolved/disputed task.
 
 Arbiter availability remains a trust assumption. This change supplies access to arbitration, not guaranteed resolution if the arbiter also disappears.
+
+
+## Poster confirmation and immediate payout
+
+The updated contract exposes `supportsPosterConfirmation()` and `confirmAndPay(id)`.
+Only the task poster can confirm, and only from `Approved`. Confirmation immediately
+pays the full escrow to the assigned worker, marks the task `Paid`, and waives the
+remaining challenge window. Submitted, rejected, disputed and settled tasks cannot
+use this path. The permissionless delayed `claim` and verifier keeper remain unchanged.
+
+Deploy a new escrow to enable this capability, synchronize the service and web escrow
+addresses, and restart services / rebuild the web app. Existing tasks and funds remain
+in the old escrow; preserve access to that deployment to finish them. They cannot be
+migrated simply by changing configuration. The UI probes the capability and retains
+delayed settlement when support cannot be confirmed. No contract was deployed as part
+of this code change.
+
+Validation: the local EVM test covers poster-only authorization, early payout, worker
+balance changes, rejection of repeat payouts and exclusion of disputed/unverified tasks.

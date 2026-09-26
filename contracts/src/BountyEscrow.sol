@@ -152,6 +152,19 @@ contract BountyEscrow is ReentrancyGuard {
         emit Resolved(id, toWorker);
     }
 
+    /// @notice Allows clients to detect immediate poster settlement support.
+    function supportsPosterConfirmation() external pure returns (bool) { return true; }
+
+    /// @notice The poster accepts verified work and waives the remaining challenge window.
+    function confirmAndPay(uint256 id) external nonReentrant {
+        Bounty storage b = _bounty(id);
+        if (msg.sender != b.poster) revert Unauthorized();
+        if (b.status != Status.Approved) revert InvalidState();
+        b.status = Status.Paid;
+        token.safeTransfer(b.worker, b.amount);
+        emit Paid(id, b.worker, b.amount);
+    }
+
     function claim(uint256 id) external nonReentrant {
         Bounty storage b = _bounty(id);
         if (b.status != Status.Approved) revert InvalidState();
