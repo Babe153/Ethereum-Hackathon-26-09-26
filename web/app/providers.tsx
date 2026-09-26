@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   RainbowKitProvider,
   connectorsForWallets,
@@ -44,10 +45,11 @@ const config = createConfig({
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+  const pathname = usePathname();
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>{children}</RainbowKitProvider>
+        <RainbowKitProvider locale={pathname?.startsWith("/zh") ? "zh-CN" : "en-US"}>{children}</RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
