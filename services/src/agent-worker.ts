@@ -86,7 +86,7 @@ async function work(id: bigint) {
       `${process.env.SERVICE_BASE_URL || "http://localhost:8787"}/submissions`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-proofpay-service-secret": process.env.SERVICE_PROXY_SECRET || "" },
         body: JSON.stringify({ content }),
       },
     );

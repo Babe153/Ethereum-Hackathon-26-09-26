@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
+import { useAccount, useSignMessage, useSwitchChain, useWalletClient } from "wagmi";
 import {
   createPublicClient,
   fallback,
@@ -72,19 +72,19 @@ function errorText(error: unknown, locale: PageLocale) {
   return message;
 }
 
-function submissionHref(uri: string) {
+function submissionHref(uri: string, bountyId: bigint) {
   try {
     const url = new URL(uri);
     if (
       (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
       /^\/submissions\/[0-9a-f-]+$/.test(url.pathname)
     ) {
-      return `${serviceUrl}${url.pathname}`;
+      return `${serviceUrl}${url.pathname}?bountyId=${bountyId}`;
     }
   } catch {
-    // Preserve other URI formats as recorded onchain.
+    // Only submissions stored by this service can be served privately.
   }
-  return uri;
+  return null;
 }
 
 type View = "market" | "post" | "detail";
@@ -97,6 +97,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
   const taskHref = (id: bigint) => `${locale === "zh" ? "/zh" : ""}/tasks/${id}`;
   const { address, chainId, isConnected } = useAccount();
   const { data: wallet } = useWalletClient();
+  const { signMessageAsync } = useSignMessage();
   const { switchChainAsync } = useSwitchChain();
   const [filter, setFilter] = useState("all");
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -109,11 +110,14 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
   const [uploadedFile, setUploadedFile] = useState("");
   const [reason, setReason] = useState<Reason | null>(null);
   const [reasonVerified, setReasonVerified] = useState(false);
+  const [authAddress, setAuthAddress] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
   const [balance, setBalance] = useState<bigint>(0n);
   const [balanceAddress, setBalanceAddress] = useState<string | null>(null);
   const [chainError, setChainError] = useState(false);
   const [chainLoaded, setChainLoaded] = useState(false);
   const previousEntries = useRef<Entry[]>([]);
+  const previousWallet = useRef<string | null>(null);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -218,14 +222,67 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
     bounty &&
     getAddress(address) === getAddress(bounty.worker)
   );
+  const signedIn = !!address && authAddress === address.toLowerCase();
+
+  useEffect(() => {
+    const currentWallet = address?.toLowerCase() ?? null;
+    if (previousWallet.current && previousWallet.current !== currentWallet) {
+      setAuthAddress(null);
+      void fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    }
+    previousWallet.current = currentWallet;
+  }, [address]);
+
+  useEffect(() => {
+    let active = true;
+    setAuthAddress(null);
+    if (!address) return;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(response => response.json())
+      .then((data: { address?: string | null }) => {
+        if (active && data.address?.toLowerCase() === address.toLowerCase()) setAuthAddress(address.toLowerCase());
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [address]);
+
+  async function signIn() {
+    if (!address) return;
+    setAuthBusy(true);
+    setNotice("");
+    try {
+      const challengeResponse = await fetch(`/api/auth/challenge?address=${encodeURIComponent(address)}`, { cache: "no-store" });
+      if (!challengeResponse.ok) throw new Error(locale === "zh" ? "无法获取钱包登录请求。" : "Could not start wallet sign-in.");
+      const { message } = await challengeResponse.json() as { message: string };
+      const signature = await signMessageAsync({ account: address, message });
+      const verifyResponse = await fetch("/api/auth/verify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, signature }),
+      });
+      if (!verifyResponse.ok) throw new Error(locale === "zh" ? "签名验证失败，请重试。" : "Signature verification failed. Try again.");
+      setAuthAddress(address.toLowerCase());
+      setNotice(locale === "zh" ? "钱包身份已验证。" : "Wallet identity verified.");
+    } catch (error) {
+      setNotice(errorText(error, locale));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    setSubmission("");
+    setUploadedFile("");
+    setNotice("");
+    setTxHash(null);
+  }, [address, selected]);
 
   useEffect(() => {
     setReason(null);
     setReasonVerified(false);
-    if (!bounty || bounty.reasonHash === zeroHash) return;
+    if (!bounty || bounty.reasonHash === zeroHash || !isPoster || !signedIn) return;
     const hash = bounty.reasonHash;
     let active = true;
-    fetch(`${serviceUrl}/reasons/${current?.id}`)
+    fetch(`${serviceUrl}/reasons/${current?.id}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: Reason) => {
         if (active) {
@@ -239,7 +296,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
     return () => {
       active = false;
     };
-  }, [current?.id, bounty?.reasonHash]);
+  }, [current?.id, bounty?.reasonHash, isPoster, signedIn]);
 
   async function transact(name: string, action: () => Promise<`0x${string}`>): Promise<boolean> {
     if (!wallet || !address) {
@@ -346,7 +403,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
   }
 
   async function submit() {
-    if (!wallet || !address || selected === null || !submission.trim()) {
+    if (!wallet || !address || selected === null || !submission.trim() || !signedIn) {
       setNotice(t.writeSubmission);
       return;
     }
@@ -354,7 +411,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
       const response = await fetch(`${serviceUrl}/submissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: submission }),
+        body: JSON.stringify({ content: submission, bountyId: String(selected) }),
       });
       if (!response.ok)
         throw new Error(`${t.storeFailed} ${response.status}`);
@@ -390,7 +447,16 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
   }
 
   const zh = locale === 'zh';
-  const visibleEntries = entries.filter(({ bounty }) => filter === 'all' || (filter === 'open' ? bounty.status === 0 : filter === 'active' ? [1, 2, 3, 4].includes(bounty.status) : filter === 'mine' ? !!address && [bounty.poster.toLowerCase(), bounty.worker.toLowerCase()].includes(address.toLowerCase()) : [5, 6].includes(bounty.status)));
+  const visibleEntries = entries.filter(({ bounty }) => {
+    if (filter === "all") return true;
+    if (filter === "open") return bounty.status === 0;
+    if (filter === "active") return [1, 2, 3, 4].includes(bounty.status);
+    if (filter === "closed") return [5, 6].includes(bounty.status);
+    if (!address) return false;
+    if (filter === "posted") return bounty.poster.toLowerCase() === address.toLowerCase();
+    if (filter === "working") return bounty.worker.toLowerCase() === address.toLowerCase();
+    return false;
+  });
   const locked = entries.filter(e => e.bounty.status < 5).reduce((sum, e) => sum + e.bounty.amount, 0n);
   return (
     <main className="shell">
@@ -548,7 +614,8 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
                 ↻
               </button>
             </div>
-            <div className="market-filters" aria-label={zh ? '筛选任务' : 'Filter bounties'}>{[['all',zh?'全部':'All'],['open',zh?'待接单':'Open'],['active',zh?'进行中':'Active'],['closed',zh?'已结束':'Closed'],['mine',zh?'与我有关':'My tasks']].map(([key,label])=><button key={key} aria-pressed={filter===key} className={filter===key?'chosen':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+            <div className="market-filters" aria-label={zh ? '筛选任务' : 'Filter bounties'}>{[['all',zh?'全部':'All'],['open',zh?'待接单':'Open'],['active',zh?'进行中':'Active'],['closed',zh?'已结束':'Closed'],['posted',zh?'我发布的':'Posted by me'],['working',zh?'我接的':'Accepted by me']].map(([key,label])=><button key={key} aria-pressed={filter===key} className={filter===key?'chosen':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+            {(filter === "posted" || filter === "working") && address && <p className="wallet-scope">{zh ? "当前钱包" : "Current wallet"}：{short(address)}</p>}
             {visibleEntries.length ? (
               <div className="bounty-list">
                 {visibleEntries.map(({ id, bounty: item }) => (
@@ -578,8 +645,9 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
             ) : (
               <div className="empty">
                 <div>◌</div>
-                <strong>{chainError ? t.chainUnavailable : !chainLoaded ? t.loadingBounties : filter === "all" ? t.noBounties : zh ? "暂无符合筛选条件的任务" : "No matching bounties"}</strong>
-                <p>{chainError ? t.chainRetry : !chainLoaded ? "" : filter === "all" ? t.firstTask : zh ? "切换其他状态查看任务。" : "Try another status filter."}</p>
+                <strong>{chainError ? t.chainUnavailable : !chainLoaded ? t.loadingBounties : (filter === "posted" || filter === "working") && !address ? (zh ? "连接钱包查看自己的任务" : "Connect your wallet to see your tasks") : filter === "all" ? t.noBounties : zh ? "暂无符合筛选条件的任务" : "No matching bounties"}</strong>
+                <p>{chainError ? t.chainRetry : !chainLoaded ? "" : filter === "all" ? t.firstTask : (filter === "posted" || filter === "working") && !address ? (zh ? "连接后仅显示该钱包发布或接下的任务。" : "Only tasks posted or accepted by this wallet will appear.") : zh ? "切换其他状态查看任务。" : "Try another status filter."}</p>
+                {(filter === "posted" || filter === "working") && !address && <ConnectButton showBalance={false} chainStatus="none" />}
               </div>
             )}
           </div>}
@@ -658,20 +726,15 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
                   </strong>
                 </span>
               </div>
-              {bounty.submissionURI && (
+              {bounty.submissionURI && (isPoster || isWorker) && (
                 <div className="evidence">
                   <h4>{t.submission}</h4>
-                  <a
-                    href={submissionHref(bounty.submissionURI)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t.openWork}
-                  </a>
+                  {submissionHref(bounty.submissionURI, current.id) ? (signedIn ? <a href={submissionHref(bounty.submissionURI, current.id)!} target="_blank" rel="noreferrer">{t.openWork}</a> : <button className="secondary" disabled={authBusy} onClick={() => void signIn()}>{zh ? "签名后查看交付内容" : "Sign to view deliverable"}</button>) : <p className="private-note">{zh ? "这份交付使用外部地址，平台无法保证其访问权限。" : "This deliverable uses an external address; the platform cannot control its access."}</p>}
                   <small>{t.contentHash}: {short(bounty.submissionHash)}</small>
                 </div>
               )}
-              {reason && (
+              {bounty.submissionURI && !isPoster && !isWorker && <p className="private-note">{zh ? "平台内交付内容仅发布者和接单者可见。" : "Platform-hosted deliverables are visible only to the poster and worker."}</p>}
+              {reason && isPoster && signedIn && (
                 <section className="verdict" aria-label={zh ? "DeepSeek 验收报告" : "DeepSeek review report"}>
                   <div className="report-heading"><span>{/scripted demo/i.test(reason.reason) ? (zh ? "脚本演示结果" : "Scripted demo result") : (zh ? "DeepSeek 验收报告" : "DeepSeek review report")}</span><span className={`status status-${reason.pass ? 3 : 4}`}>{reason.pass ? (zh ? "通过" : "Passed") : (zh ? "未通过" : "Needs revision")}</span></div>
                   <div className="report-score"><strong>{reason.score}%</strong><span>{zh ? "任务完成度" : "Task completion"}</span></div>
@@ -686,6 +749,8 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
                   <p className="report-disclaimer">{zh ? "完成度是 AI 的评估，不代表付款比例；链上只校验验收理由的哈希。" : "The score is an AI assessment, not a payment percentage. Only the review reason's hash is committed on chain."}</p>
                 </section>
               )}
+              {bounty.reasonHash !== zeroHash && isPoster && !signedIn && <div className="report-gate"><strong>{zh ? "验收报告仅向发布者开放" : "Review report for the poster"}</strong><p>{zh ? "请用发布任务的钱包签名，查看完成度和验收依据。" : "Sign with the posting wallet to see the score and review findings."}</p><button className="secondary" disabled={authBusy} onClick={() => void signIn()}>{authBusy ? (zh ? "等待钱包签名…" : "Waiting for signature…") : (zh ? "签名查看报告" : "Sign to view report")}</button></div>}
+              {bounty.reasonHash !== zeroHash && !isPoster && <p className="private-note">{zh ? "完整验收报告仅发布者可见。" : "The full review report is visible only to the poster."}</p>}
             </div>
             <div className="action-box">
               <h4>{t.nextAction}</h4>
@@ -723,6 +788,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
               )}
               {bounty.status === 1 && isWorker && (
                 <>
+                  {!signedIn && <div className="report-gate"><strong>{zh ? "签名后交付" : "Sign in to submit"}</strong><p>{zh ? "请用接单的钱包签名，避免把成果提交到其他账户。" : "Sign with the assigned worker wallet before submitting work."}</p><button className="secondary" disabled={authBusy} onClick={() => void signIn()}>{zh ? "签名验证钱包" : "Verify wallet signature"}</button></div>}
                   <label className="upload-label" htmlFor="deliverable-file">{zh ? "上传成果（文本文件）" : "Upload deliverable (text file)"}</label>
                   <input id="deliverable-file" className="file-input" type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv" onChange={(event) => { const file = event.target.files?.[0]; if (file) void readDeliverable(file); }} />
                   <p className="upload-hint">{uploadedFile ? `${zh ? "已读取" : "Loaded"}: ${uploadedFile}` : (zh ? "支持 .txt、.md、.json、.csv，最大 20 KB；也可以直接在下方填写。" : "Supports .txt, .md, .json and .csv up to 20 KB. You can also write below.")}</p>
@@ -737,6 +803,7 @@ export default function BountyApp({ locale = "en", view = "market", taskId }: { 
                     className="primary"
                     disabled={
                       !wallet ||
+                      !signedIn ||
                       !!busy ||
                       !submission.trim() ||
                       now >= Number(bounty.deadline)

@@ -44,7 +44,7 @@ async function verify(id: bigint) {
       !/^\/submissions\/[0-9a-f-]{36}$/.test(uri.pathname)
     )
       throw new Error("Submission URI is outside the trusted store");
-    const response = await fetch(uri, { signal: AbortSignal.timeout(10000) });
+    const response = await fetch(uri, { headers: { "x-proofpay-service-secret": process.env.SERVICE_PROXY_SECRET || "" }, signal: AbortSignal.timeout(10000) });
     if (!response.ok)
       throw new Error(`Submission fetch failed: ${response.status}`);
     const { content } = (await response.json()) as { content: string };
