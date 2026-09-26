@@ -420,7 +420,7 @@ useEffect(() => {
   async function approveAiFailure() {
     if (!current || !bounty || !pendingReview || !isPoster || !signedIn) return;
     if (manualReason.trim().length < 5) {
-      setNotice(locale === "zh" ? "请用至少 5 个字说明人工认可的依据。" : "Explain your approval in at least 5 characters.");
+      setNotice(locale === "zh" ? "请用至少 5 个字符说明人工认可的依据。" : "Explain your approval in at least 5 characters.");
       return;
     }
     setBusy("human-approval");
@@ -1425,7 +1425,14 @@ useEffect(() => {
 {isPoster && pendingReview && !pendingReview.humanApprovalPending && <div className="manual-review">
                     <strong>{zh ? "你可以推翻 AI 的未通过建议" : "You can overrule the AI rejection"}</strong>
                     <p>{zh ? "先核对交付内容，再写下认可依据。你的决定会由验收服务写入链上。" : "Read the deliverable, then explain why you accept it. The verifier service will record your decision on chain."}</p>
-                    <textarea aria-label={zh ? "人工认可理由" : "Reason for human approval"} maxLength={500} rows={3} value={manualReason} onChange={event => setManualReason(event.target.value)} placeholder={zh ? "例如：交付已满足我最看重的要求……" : "For example: The delivery meets the requirement that matters most…"} />
+                    <textarea aria-label={zh ? "人工认可理由" : "Reason for human approval"} aria-describedby="manual-review-help" maxLength={500} rows={3} value={manualReason} onChange={event => setManualReason(event.target.value)} placeholder={zh ? "例如：交付已满足我最看重的要求……" : "For example: The delivery meets the requirement that matters most…"} />
+                    <small id="manual-review-help" role="status">
+                      {now * 1000 >= pendingReview.expiresAt
+                        ? (zh ? "人工认可时间已结束，不能再提交。" : "The human review window has closed.")
+                        : manualReason.trim().length < 5
+                          ? (zh ? `理由至少需要 5 个字符，还差 ${5 - manualReason.trim().length} 个。` : `The reason needs at least 5 characters; ${5 - manualReason.trim().length} more to go.`)
+                          : (zh ? "理由已符合要求，可以提交人工认可。" : "The reason is ready; you can submit your approval.")}
+                    </small>
                     <button className="primary" disabled={!!busy || manualReason.trim().length < 5 || Date.now() >= pendingReview.expiresAt} onClick={() => void approveAiFailure()}>{zh ? "人工认可这份交付" : "Approve this work manually"}</button>
                     <small>{zh ? `人工认可截止：${new Intl.DateTimeFormat("zh-CN", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(pendingReview.expiresAt))}（悉尼时间）` : `Human review closes at ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(pendingReview.expiresAt))} Sydney time`}</small>
                   </div>}
