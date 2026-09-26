@@ -80,6 +80,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
   const { address, chainId, isConnected } = useAccount();
   const { data: wallet } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
+  const [filter, setFilter] = useState("all");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selected, setSelected] = useState<bigint | null>(null);
   const [amount, setAmount] = useState("100");
@@ -322,6 +323,9 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
     );
   }
 
+  const zh = locale === 'zh';
+  const visibleEntries = entries.filter(({ bounty }) => filter === 'all' || (filter === 'open' ? bounty.status === 0 : filter === 'active' ? [1, 2, 3, 4].includes(bounty.status) : [5, 6].includes(bounty.status)));
+  const locked = entries.filter(e => e.bounty.status < 5).reduce((sum, e) => sum + e.bounty.amount, 0n);
   return (
     <main className="shell">
       <header className="topbar">
@@ -351,6 +355,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             <em>{t.heroLine2}</em>
           </h1>
           <p>{t.heroDescription}</p>
+          <div className="hero-actions"><a className="primary" href="#create-task">{zh ? '发布悬赏' : 'Post a bounty'} <span>↗</span></a><a className="secondary" href="#bounty-market">{zh ? '查看任务' : 'Explore bounties'} <span>↓</span></a></div>
           <div className="hero-pills">
             {t.heroPills.map((pill) => <span key={pill}>{pill}</span>)}
           </div>
@@ -379,7 +384,13 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
           </button>
         </div>
       )}
-      <ServiceHealth url={serviceUrl} />
+      <div className="overview-stats" aria-label={zh ? '链上任务概览' : 'On-chain overview'}>
+        <div><small>{zh ? '托管中的赏金' : 'REWARDS IN ESCROW'}</small><strong>{configured ? formatUnits(locked,6) : '—'} <em>mUSDT</em></strong><span>{zh ? '测试代币，无实际价值' : 'Demo tokens · no monetary value'}</span></div>
+        <div><small>{zh ? '开放任务' : 'OPEN BOUNTIES'}</small><strong>{configured ? entries.filter(e => e.bounty.status === 0).length : '—'}</strong><span>{zh ? '等待接单' : 'Ready for a worker'}</span></div>
+        <div><small>{zh ? '进行中的任务' : 'IN PROGRESS'}</small><strong>{configured ? entries.filter(e => [1,2,3,4].includes(e.bounty.status)).length : '—'}</strong><span>{zh ? '交付、验收或仲裁中' : 'Delivery, review or arbitration'}</span></div>
+        <div><small>{zh ? '已付款任务' : 'PAID BOUNTIES'}</small><strong>{configured ? entries.filter(e => e.bounty.status === 5).length : '—'}</strong><span>{zh ? '结算记录保存在链上' : 'Settlement recorded on chain'}</span></div>
+      </div>
+      <ServiceHealth url={serviceUrl} locale={locale} />
       <section className="workspace">
         <div className="workspace-head">
           <div>
@@ -411,7 +422,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
           </div>
         </div>
         <div className="panels">
-          <div className="panel create-panel">
+          <div className="panel create-panel" id="create-task">
             <div className="panel-heading">
               <span className="panel-icon">＋</span>
               <div>
@@ -461,7 +472,7 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
               {t.createNote}
             </p>
           </div>
-          <div className="panel list-panel">
+          <div className="panel list-panel" id="bounty-market">
             <div className="panel-heading">
               <span className="panel-icon dark">▦</span>
               <div>
@@ -478,13 +489,14 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
                 ↻
               </button>
             </div>
-            {entries.length ? (
+            <div className="market-filters" aria-label={zh ? '筛选任务' : 'Filter bounties'}>{[['all',zh?'全部':'All'],['open',zh?'待接单':'Open'],['active',zh?'进行中':'Active'],['closed',zh?'已结束':'Closed']].map(([key,label])=><button key={key} aria-pressed={filter===key} className={filter===key?'chosen':''} onClick={()=>setFilter(key)}>{label}</button>)}</div>
+            {visibleEntries.length ? (
               <div className="bounty-list">
-                {entries.map(({ id, bounty: item }) => (
+                {visibleEntries.map(({ id, bounty: item }) => (
                   <button
                     key={String(id)}
                     className={`bounty-item ${selected === id ? "selected" : ""}`}
-                    onClick={() => setSelected(id)}
+                    onClick={() => { setSelected(id); requestAnimationFrame(() => document.getElementById("task-details")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}
                   >
                     <div>
                       <span className="item-id">
@@ -505,15 +517,15 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
             ) : (
               <div className="empty">
                 <div>◌</div>
-                <strong>{t.noBounties}</strong>
-                <p>{t.firstTask}</p>
+                <strong>{filter === "all" ? t.noBounties : zh ? "暂无符合筛选条件的任务" : "No matching bounties"}</strong>
+                <p>{filter === "all" ? t.firstTask : zh ? "切换其他状态查看任务。" : "Try another status filter."}</p>
               </div>
             )}
           </div>
         </div>
       </section>
       {current && bounty && (
-        <section className="detail">
+        <section className="detail" id="task-details">
           <div className="detail-head">
             <div>
               <div className="section-kicker">
@@ -662,9 +674,9 @@ export default function Home({ locale = "en" }: { locale?: PageLocale }) {
                 <div className="action-note">
                   <p>{t.waitingVerifier}</p>
                   {verificationEnds?.id === current.id ? <>
-                    <p>{now < verificationEnds.at ? `Timeout arbitration available in ${Math.max(0, verificationEnds.at - now)} seconds.` : 'Verification is overdue. The poster or worker can request arbitration; funds remain escrowed until the arbiter decides.'}</p>
-                    {(isPoster || isWorker) && <button className="secondary" disabled={!wallet || !!busy || now < verificationEnds.at} onClick={() => action('Request timeout arbitration', 'escalateVerificationTimeout', [current.id])}>Request timeout arbitration</button>}
-                  </> : <p>Timeout recovery is unavailable or could not be read on this deployment. The original contract requires redeployment to support it.</p>}
+                    <p>{now < verificationEnds.at ? (zh ? `还需 ${Math.max(0, verificationEnds.at - now)} 秒可申请超时仲裁。` : `Timeout arbitration available in ${Math.max(0, verificationEnds.at - now)} seconds.`) : (zh ? '验收已超时。发布者或接单者可申请仲裁，裁决前资金继续托管。' : 'Verification is overdue. Either participant may request arbitration; funds remain escrowed until a decision.')}</p>
+                    {(isPoster || isWorker) && <button className="secondary" disabled={!wallet || !!busy || now < verificationEnds.at} onClick={() => action('Request timeout arbitration', 'escalateVerificationTimeout', [current.id])}>{zh ? "申请超时仲裁" : "Request timeout arbitration"}</button>}
+                  </> : <p>{zh ? "当前合约不支持超时仲裁，或暂时无法读取。旧版本需重新部署才能使用。" : "Timeout recovery is unavailable or could not be read. Older contracts need redeployment to support it."}</p>}
                 </div>
               )}
               {bounty.status === 3 && (
